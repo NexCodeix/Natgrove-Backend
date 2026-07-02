@@ -1,0 +1,176 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>NetGrove Backend - Design Plan</title>
+<style>
+  @page { margin: 22mm 18mm; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #1c1c1c;
+    line-height: 1.5;
+    font-size: 12.5px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 26px;
+    color: #14532d;
+    border-bottom: 3px solid #14532d;
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    color: #555;
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  h2 {
+    font-size: 18px;
+    color: #14532d;
+    margin-top: 34px;
+    border-left: 5px solid #16a34a;
+    padding-left: 10px;
+  }
+  h3 {
+    font-size: 14.5px;
+    color: #166534;
+    margin-top: 20px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0 20px 0;
+    font-size: 11.5px;
+  }
+  th, td {
+    border: 1px solid #d1d5db;
+    padding: 6px 9px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #ecfdf5;
+    color: #14532d;
+  }
+  tr:nth-child(even) td { background: #fafafa; }
+  code {
+    background: #f1f5f2;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    color: #14532d;
+  }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  .model-block {
+    background: #f8faf9;
+    border: 1px solid #e2e8e4;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+  }
+  .model-block strong { color: #14532d; }
+  .flow-step {
+    margin-bottom: 8px;
+  }
+  .flow-step b { color: #14532d; }
+  .footer-note {
+    margin-top: 40px;
+    padding-top: 12px;
+    border-top: 1px solid #d1d5db;
+    color: #777;
+    font-size: 10.5px;
+  }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>NetGrove Backend &mdash; Design Plan</h1>
+<div class="subtitle">Corporate sustainability challenge &amp; rewards platform &mdash; Django + DRF + PostgreSQL</div>
+
+<p>This plan is built on the original NetGrove UML diagram, corrected and extended to support the full product flow: a company admin onboards a company, employees self-register with a company email, managers assign sustainability challenges to departments, employees complete and submit proof, earn points, and redeem those points for brand vouchers (e.g. Adidas, Gucci).</p>
+
+<h2>1. Gaps Fixed From the Original UML</h2>
+<table>
+<tr><th>Diagram issue</th><th>Fix</th></tr>
+<tr><td><code>Rewards</code> and <code>Rewards History</code> are two tables doing the same job (a balance and a ledger)</td><td>Merged into <code>PointsWallet</code> (cached balance) + <code>PointsTransaction</code> (append-only ledger). One is the cache, one is the audit trail.</td></tr>
+<tr><td>No Voucher/Coupon/Brand model &mdash; "convert points into an Adidas/Gucci coupon" has nowhere to live</td><td>Added <code>VoucherCatalogItem</code>, <code>VoucherCode</code>, <code>VoucherRedemption</code> &mdash; admin-managed voucher catalog per company.</td></tr>
+<tr><td><code>Company</code> has no way to gate which employees can self-register</td><td>Added <code>Company.email_domain</code> (e.g. <code>acme.com</code>); employee registration validates the signup email against it.</td></tr>
+<tr><td><code>User</code> has no <code>department</code> field, so department-targeted challenges can't reach anyone</td><td>Added <code>User.department</code> FK.</td></tr>
+<tr><td><code>Challenge</code> has no <code>status</code> field even though the <code>ChallengeStatus</code> enum (DRAFT/ACTIVE/COMPLETED) exists disconnected in the diagram</td><td>Attached <code>status</code> to <code>Challenge</code>; also added <code>end_date</code>.</td></tr>
+<tr><td><code>Challenge</code> only links to <code>Company</code>, not <code>Department</code></td><td>Added <code>Challenge.department</code> (nullable &mdash; null means company-wide).</td></tr>
+<tr><td><code>Action</code> (proof of completion) has no image/file field and no reviewer</td><td>Added <code>proof_image</code>, <code>caption</code>, <code>reviewed_by</code>, <code>reviewed_at</code>.</td></tr>
+<tr><td><code>Action</code> and <code>ChallengeParticipation</code> both independently reference user + challenge</td><td><code>Action</code> becomes a submission under a <code>ChallengeParticipation</code>, not a sibling table.</td></tr>
+<tr><td><code>Notification</code> has no <code>is_read</code> flag</td><td>Added.</td></tr>
+<tr><td><code>ActionStatus</code> / participation status only has PENDING/COMPLETED &mdash; no rejection path</td><td>Extended so managers can reject a submission and send the employee back to retry.</td></tr>
+</table>
+
+<h2>2. Confirmed Decisions</h2>
+<ul>
+<li><b>Stack:</b> Django + Django REST Framework + PostgreSQL</li>
+<li><b>File storage:</b> Local disk / server storage (proof photos, logos, profile images) &mdash; acceptable for now; revisit before scaling to multiple app servers, since local disk isn't shared/durable across instances</li>
+<li><b>Voucher redemption model:</b> Admin-managed voucher catalog per company &mdash; each company's admin defines available vouchers and uploads a pool of redemption codes; employees redeem points for a code, no external brand API integration required</li>
+</ul>
+
+<h2 class="page-break">3. Data Model, by Django App</h2>
+
+<h3>accounts</h3>
+<div class="model-block"><strong>User</strong> (custom model) &mdash; email, username, password, first_name, last_name, role (COMPANY_ADMIN / MANAGER / EMPLOYEE), company FK (null until assigned), department FK (null), is_active</div>
+<div class="model-block"><strong>Company</strong> &mdash; name, description, logo, admin FK&rarr;User, email_domain, is_active, created_at</div>
+<div class="model-block"><strong>Department</strong> &mdash; company FK, name, manager FK&rarr;User (null)</div>
+<div class="model-block"><strong>UserProfile</strong> &mdash; user (1:1), bio, profile_image</div>
+
+<h3>challenges</h3>
+<div class="model-block"><strong>Challenge</strong> &mdash; company FK, department FK (null = company-wide), created_by FK&rarr;User, title, description, challenge_type (WATERSAVE / TREEPLANT / &hellip;), difficulty, point_reward, start_date, end_date, status (DRAFT / ACTIVE / COMPLETED)</div>
+<div class="model-block"><strong>ChallengeParticipation</strong> &mdash; user FK, challenge FK, status (JOINED / SUBMITTED / APPROVED / REJECTED), joined_at, completed_at &mdash; unique_together(user, challenge)</div>
+<div class="model-block"><strong>Action</strong> (submission) &mdash; participation FK, action_type, proof_image, caption, status (PENDING / APPROVED / REJECTED), reviewed_by FK&rarr;User (null), reviewed_at, submitted_at</div>
+
+<h3>rewards</h3>
+<div class="model-block"><strong>PointsWallet</strong> &mdash; user (1:1), balance</div>
+<div class="model-block"><strong>PointsTransaction</strong> &mdash; user FK, amount, transaction_type (EARNED / REDEEMED), related_challenge FK (null), related_redemption FK (null), balance_after, created_at</div>
+<div class="model-block"><strong>VoucherCatalogItem</strong> &mdash; company FK, brand_name, title, description, image, points_cost, is_active, created_by</div>
+<div class="model-block"><strong>VoucherCode</strong> &mdash; catalog_item FK, code (unique), is_used, assigned_to FK&rarr;User (null), assigned_at</div>
+<div class="model-block"><strong>VoucherRedemption</strong> &mdash; user FK, catalog_item FK, voucher_code (1:1), points_spent, redeemed_at</div>
+
+<h3>notifications</h3>
+<div class="model-block"><strong>Notification</strong> &mdash; user FK, title, body, notification_type (WELCOME_MESSAGE / CHALLENGE_ASSIGNED / SUBMISSION_APPROVED / SUBMISSION_REJECTED / POINTS_EARNED / VOUCHER_REDEEMED), is_read, created_at</div>
+
+<h3>leaderboard</h3>
+<p>Start as a computed aggregation (query over <code>PointsTransaction</code> / <code>ChallengeParticipation</code>, scoped by company / department / challenge) rather than a persisted table &mdash; avoids keeping a redundant table in sync. Only add a cached <code>LeaderboardSnapshot</code> table, recomputed by a periodic task, if a real performance problem shows up later.</p>
+
+<h2 class="page-break">4. Core Flows</h2>
+
+<div class="flow-step"><b>1. Company onboarding &mdash;</b> one transaction creates <code>User(role=COMPANY_ADMIN, company=None)</code> + <code>Company(admin=user, email_domain=...)</code>, then backfills <code>user.company</code>.</div>
+<div class="flow-step"><b>2. Employee self-registration &mdash;</b> signup email's domain must match <code>Company.email_domain</code> &rarr; creates <code>User(role=EMPLOYEE)</code>, fires a <code>WELCOME_MESSAGE</code> notification.</div>
+<div class="flow-step"><b>3. Department + manager setup &mdash;</b> admin creates a <code>Department</code>, assigns a <code>User</code> as manager (promoting their role to MANAGER), assigns employees to it.</div>
+<div class="flow-step"><b>4. Challenge lifecycle &mdash;</b> admin/manager creates a <code>Challenge</code> (DRAFT &rarr; ACTIVE) scoped to the company or one department &rarr; employee sees it in their feed &rarr; <code>join</code> creates <code>ChallengeParticipation(JOINED)</code> &rarr; employee uploads proof &rarr; <code>Action(PENDING)</code>, participation &rarr; SUBMITTED &rarr; manager approves/rejects &rarr; on approve: participation &rarr; APPROVED, <code>PointsTransaction(EARNED)</code> created, wallet balance updated, <code>SUBMISSION_APPROVED</code> notification sent.</div>
+<div class="flow-step"><b>5. Redemption &mdash;</b> employee browses <code>VoucherCatalogItem</code> entries for their company &rarr; redeems &rarr; atomically checks balance, locks/assigns one unused <code>VoucherCode</code>, creates <code>VoucherRedemption</code> + <code>PointsTransaction(REDEEMED)</code>.</div>
+
+<h2>5. Roles &amp; Permissions</h2>
+<table>
+<tr><th>Role</th><th>Capabilities</th></tr>
+<tr><td>COMPANY_ADMIN</td><td>Full control within own company &mdash; departments, challenges, voucher catalog, promote users to MANAGER, view all employees</td></tr>
+<tr><td>MANAGER</td><td>Create/edit challenges for their department, review submissions from their department's employees</td></tr>
+<tr><td>EMPLOYEE</td><td>View/join challenges, submit proof, view own wallet/history, redeem vouchers</td></tr>
+</table>
+<p>Every queryset is scoped by <code>request.user.company</code> &mdash; enforced via a shared permission/mixin, not per-view checks &mdash; so there is no cross-company data leakage.</p>
+
+<h2 class="page-break">6. Build Order</h2>
+<ol>
+<li>Django project + DRF + SimpleJWT + PostgreSQL + custom <code>User</code> model (must exist before the first migration)</li>
+<li><code>accounts</code>: models, registration/login, domain-gated employee signup, department management</li>
+<li><code>challenges</code>: models, create/join/submit/review endpoints</li>
+<li><code>rewards</code>: wallet + transactions wired via a signal on participation approval; voucher catalog + redemption endpoint</li>
+<li><code>notifications</code>: model + signal hooks for the events above (simple polling GET for MVP)</li>
+<li><code>leaderboard</code>: aggregation endpoints</li>
+<li>Django admin customization scoped per company (free win for admins managing voucher codes/challenges)</li>
+<li><code>drf-spectacular</code> for OpenAPI docs, seed fixtures, tests</li>
+</ol>
+
+<div class="footer-note">NetGrove Backend Design Plan &mdash; generated 2026-07-02.</div>
+
+</body>
+</html>
