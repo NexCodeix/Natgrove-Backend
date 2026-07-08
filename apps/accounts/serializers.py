@@ -2,7 +2,7 @@ from django.db import transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Company, Department, User, UserProfile, UserRole
+from .models import Community, Company, Department, User, UserProfile, UserRole
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -28,6 +28,17 @@ class CompanySerializer(serializers.ModelSerializer):
         model = Company
         fields = ['id', 'name', 'description', 'logo', 'email_domain', 'admin', 'is_active', 'created_at']
         read_only_fields = ['id', 'admin', 'is_active', 'created_at']
+
+
+class CommunitySerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Community
+        fields = ['id', 'company', 'scope', 'department', 'name', 'member_count']
+
+    def get_member_count(self, obj):
+        return obj.member_queryset().count()
 
 
 class DepartmentSerializer(serializers.ModelSerializer):

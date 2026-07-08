@@ -15,6 +15,8 @@ urlpatterns = [
     path('departments/', views.DepartmentListCreateView.as_view(), name='department-list-create'),
     path('departments/<uuid:pk>/', views.DepartmentDetailView.as_view(), name='department-detail'),
 
+    path('communities/', views.CommunityListView.as_view(), name='community-list'),
+
     path('employees/', views.EmployeeListView.as_view(), name='employee-list'),
     path('employees/<uuid:pk>/role/', views.EmployeeRoleUpdateView.as_view(), name='employee-role-update'),
 ]

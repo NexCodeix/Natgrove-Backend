@@ -71,6 +71,16 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     def full_name(self):
         return f'{self.first_name} {self.last_name}'.strip() or self.username
 
+    def community_ids(self):
+        ids = list(
+            Community.objects.filter(company_id=self.company_id, scope=CommunityScope.COMPANY).values_list(
+                'id', flat=True
+            )
+        ) if self.company_id else []
+        if self.department_id:
+            ids += list(Community.objects.filter(department_id=self.department_id).values_list('id', flat=True))
+        return ids
+
 
 class Company(BaseModel):
     name = models.CharField(max_length=255)
@@ -116,3 +126,41 @@ class UserProfile(BaseModel):
 
     def __str__(self):
         return f'Profile of {self.user.email}'
+
+
+class CommunityScope(models.TextChoices):
+    COMPANY = 'COMPANY', 'Whole Company'
+    DEPARTMENT = 'DEPARTMENT', 'Department'
+
+
+class Community(BaseModel):
+    """
+    Auto-derived participant group used to scope challenges: one per company
+    (all employees) and one per department (that department's employees).
+    Membership is computed from Company/Department assignment, not stored
+    separately, so it never drifts out of sync as employees move around.
+    """
+
+    company = models.ForeignKey('accounts.Company', on_delete=models.CASCADE, related_name='communities')
+    scope = models.CharField(max_length=10, choices=CommunityScope.choices)
+    department = models.OneToOneField(
+        'accounts.Department', null=True, blank=True, on_delete=models.CASCADE, related_name='community'
+    )
+    name = models.CharField(max_length=255)
+
+    class Meta:
+        verbose_name_plural = 'Communities'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company'], condition=models.Q(scope=CommunityScope.COMPANY),
+                name='one_company_wide_community_per_company',
+            ),
+        ]
+
+    def member_queryset(self):
+        if self.scope == CommunityScope.COMPANY:
+            return User.objects.filter(company=self.company)
+        return User.objects.filter(department=self.department)
+
+    def __str__(self):
+        return self.name

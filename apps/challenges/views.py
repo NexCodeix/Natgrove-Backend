@@ -8,14 +8,38 @@ from rest_framework.views import APIView
 from apps.accounts.models import UserRole
 from apps.accounts.permissions import IsManagerOrAdmin
 
-from .models import Action, ActionStatus, Challenge, ChallengeParticipation, ParticipationStatus
+from .models import (
+    ActionCatalogItem,
+    ActionLog,
+    ActionStatus,
+    Challenge,
+    ChallengeFormat,
+    ChallengeParticipation,
+    ChallengeStatus,
+)
 from .serializers import (
+    ActionCatalogItemSerializer,
+    ActionLogSerializer,
     ChallengeParticipationSerializer,
     ChallengeSerializer,
+    LogActionSerializer,
     SubmissionReviewSerializer,
-    SubmitProofSerializer,
 )
-from .signals import submission_approved, submission_rejected
+from .signals import challenge_goal_reached, submission_approved, submission_rejected
+
+
+class ActionCatalogListView(generics.ListAPIView):
+    """Platform-wide library of loggable actions, for the challenge builder to pick from."""
+
+    serializer_class = ActionCatalogItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = ActionCatalogItem.objects.filter(is_active=True)
+        category = self.request.query_params.get('category')
+        if category:
+            qs = qs.filter(category=category)
+        return qs
 
 
 class ChallengeListCreateView(generics.ListCreateAPIView):
@@ -24,9 +48,9 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Challenge.objects.filter(company=user.company)
-        if user.role == UserRole.EMPLOYEE:
-            qs = qs.filter(Q(department__isnull=True) | Q(department=user.department))
+        qs = Challenge.objects.filter(company=user.company, is_archived=False)
+        if user.role not in (UserRole.COMPANY_ADMIN, UserRole.MANAGER):
+            qs = qs.filter(Q(communities__id__in=user.community_ids()) | Q(communities__isnull=True)).distinct()
         status_param = self.request.query_params.get('status')
         if status_param:
             qs = qs.filter(status=status_param)
@@ -59,11 +83,14 @@ class ChallengeJoinView(APIView):
 
     def post(self, request, pk):
         challenge = get_object_or_404(Challenge, pk=pk, company=request.user.company)
-        if challenge.status != 'ACTIVE':
-            return Response({'detail': 'This challenge is not currently active.'}, status=status.HTTP_400_BAD_REQUEST)
-        if challenge.department_id and challenge.department_id != request.user.department_id:
+        if challenge.status not in (ChallengeStatus.ACTIVE, ChallengeStatus.UPCOMING):
+            return Response({'detail': 'This challenge is not open for joining.'}, status=status.HTTP_400_BAD_REQUEST)
+        if challenge.communities.exists() and not challenge.communities.filter(
+            id__in=request.user.community_ids()
+        ).exists():
             return Response(
-                {'detail': 'This challenge is scoped to a different department.'}, status=status.HTTP_403_FORBIDDEN
+                {'detail': 'You are not part of a community this challenge is scoped to.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
         participation, created = ChallengeParticipation.objects.get_or_create(
             user=request.user, challenge=challenge
@@ -72,34 +99,47 @@ class ChallengeJoinView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
-class ChallengeSubmitView(APIView):
+class LogActionView(APIView):
+    """Employee logs proof of having performed one of the challenge's catalog actions."""
+
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
         challenge = get_object_or_404(Challenge, pk=pk, company=request.user.company)
         participation = get_object_or_404(ChallengeParticipation, user=request.user, challenge=challenge)
-        if participation.status not in (ParticipationStatus.JOINED, ParticipationStatus.REJECTED):
+
+        serializer = LogActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action_item = serializer.validated_data['action_catalog_item']
+
+        if not challenge.actions.filter(id=action_item.id).exists():
             return Response(
-                {'detail': f'Cannot submit proof while participation is {participation.status}.'},
+                {'action_catalog_item': 'This action is not part of this challenge.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        serializer = SubmitProofSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(participation=participation, action_type=challenge.challenge_type)
-        participation.status = ParticipationStatus.SUBMITTED
-        participation.save(update_fields=['status'])
-        return Response(ChallengeParticipationSerializer(participation).data, status=status.HTTP_201_CREATED)
+
+        action_log = serializer.save(participation=participation, points_awarded=action_item.default_points)
+        return Response(ActionLogSerializer(action_log).data, status=status.HTTP_201_CREATED)
 
 
-class ChallengeParticipationListView(generics.ListAPIView):
-    """Manager/admin review queue for a challenge's submissions."""
-
+class ChallengeParticipantsView(generics.ListAPIView):
     serializer_class = ChallengeParticipationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        challenge = get_object_or_404(Challenge, pk=self.kwargs['pk'], company=self.request.user.company)
+        return ChallengeParticipation.objects.filter(challenge=challenge)
+
+
+class ActionLogReviewQueueView(generics.ListAPIView):
+    """Manager/admin review queue of logged actions for a challenge."""
+
+    serializer_class = ActionLogSerializer
     permission_classes = [permissions.IsAuthenticated, IsManagerOrAdmin]
 
     def get_queryset(self):
         challenge = get_object_or_404(Challenge, pk=self.kwargs['pk'], company=self.request.user.company)
-        qs = ChallengeParticipation.objects.filter(challenge=challenge)
+        qs = ActionLog.objects.filter(participation__challenge=challenge)
         status_param = self.request.query_params.get('status')
         if status_param:
             qs = qs.filter(status=status_param)
@@ -114,12 +154,14 @@ class MyParticipationsView(generics.ListAPIView):
         return ChallengeParticipation.objects.filter(user=self.request.user)
 
 
-class SubmissionReviewView(APIView):
+class ActionLogReviewView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsManagerOrAdmin]
 
     def patch(self, request, pk):
-        action = get_object_or_404(Action, pk=pk, participation__challenge__company=request.user.company)
-        if action.status != ActionStatus.PENDING:
+        action_log = get_object_or_404(
+            ActionLog, pk=pk, participation__challenge__company=request.user.company
+        )
+        if action_log.status != ActionStatus.PENDING:
             return Response(
                 {'detail': 'This submission has already been reviewed.'}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -129,26 +171,28 @@ class SubmissionReviewView(APIView):
         new_status = serializer.validated_data['status']
         review_note = serializer.validated_data.get('review_note', '')
 
-        participation = action.participation
+        participation = action_log.participation
+        challenge = participation.challenge
         now = timezone.now()
 
-        action.status = new_status
-        action.reviewed_by = request.user
-        action.reviewed_at = now
-        action.review_note = review_note
-        action.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'review_note'])
+        action_log.status = new_status
+        action_log.reviewed_by = request.user
+        action_log.reviewed_at = now
+        action_log.review_note = review_note
+        action_log.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'review_note'])
 
         if new_status == ActionStatus.APPROVED:
-            participation.status = ParticipationStatus.APPROVED
-            participation.completed_at = now
-            participation.save(update_fields=['status', 'completed_at'])
             submission_approved.send(
-                sender=Action, action=action, participation=participation,
-                points=participation.challenge.point_reward,
+                sender=ActionLog, action_log=action_log, participation=participation,
+                points=action_log.points_awarded,
             )
+            if challenge.challenge_format == ChallengeFormat.GOAL and challenge.status == ChallengeStatus.ACTIVE:
+                progress = challenge.goal_progress
+                if progress and progress['current'] >= progress['target']:
+                    challenge.status = ChallengeStatus.COMPLETED
+                    challenge.save(update_fields=['status'])
+                    challenge_goal_reached.send(sender=Challenge, challenge=challenge)
         else:
-            participation.status = ParticipationStatus.REJECTED
-            participation.save(update_fields=['status'])
-            submission_rejected.send(sender=Action, action=action, participation=participation)
+            submission_rejected.send(sender=ActionLog, action_log=action_log, participation=participation)
 
-        return Response(ChallengeParticipationSerializer(participation).data)
+        return Response(ActionLogSerializer(action_log).data)

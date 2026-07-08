@@ -4,9 +4,10 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Department, User, UserProfile, UserRole
+from .models import Community, Department, User, UserProfile, UserRole
 from .permissions import IsCompanyAdmin, IsManagerOrAdmin
 from .serializers import (
+    CommunitySerializer,
     CompanyRegistrationSerializer,
     DepartmentSerializer,
     EmployeeRegistrationSerializer,
@@ -92,6 +93,16 @@ class DepartmentDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return Department.objects.filter(company=self.request.user.company)
+
+
+class CommunityListView(generics.ListAPIView):
+    """Communities available in the current user's company, for scoping challenge participants."""
+
+    serializer_class = CommunitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Community.objects.filter(company=self.request.user.company)
 
 
 class EmployeeListView(generics.ListAPIView):

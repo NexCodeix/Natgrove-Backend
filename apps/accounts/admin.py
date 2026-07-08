@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Company, Department, User, UserProfile
+from .models import Community, Company, Department, User, UserProfile
 
 
 @admin.register(User)
@@ -40,3 +40,9 @@ class DepartmentAdmin(admin.ModelAdmin):
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ['user', 'bio']
+
+
+@admin.register(Community)
+class CommunityAdmin(admin.ModelAdmin):
+    list_display = ['name', 'company', 'scope', 'department']
+    list_filter = ['scope', 'company']

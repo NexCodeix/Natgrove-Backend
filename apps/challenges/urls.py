@@ -3,11 +3,15 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('action-catalog/', views.ActionCatalogListView.as_view(), name='action-catalog-list'),
+
     path('', views.ChallengeListCreateView.as_view(), name='challenge-list-create'),
     path('<uuid:pk>/', views.ChallengeDetailView.as_view(), name='challenge-detail'),
     path('<uuid:pk>/join/', views.ChallengeJoinView.as_view(), name='challenge-join'),
-    path('<uuid:pk>/submit/', views.ChallengeSubmitView.as_view(), name='challenge-submit'),
-    path('<uuid:pk>/participations/', views.ChallengeParticipationListView.as_view(), name='challenge-participations'),
+    path('<uuid:pk>/log-action/', views.LogActionView.as_view(), name='challenge-log-action'),
+    path('<uuid:pk>/participants/', views.ChallengeParticipantsView.as_view(), name='challenge-participants'),
+    path('<uuid:pk>/action-logs/', views.ActionLogReviewQueueView.as_view(), name='challenge-action-logs'),
+
     path('my-participations/', views.MyParticipationsView.as_view(), name='my-participations'),
-    path('submissions/<uuid:pk>/review/', views.SubmissionReviewView.as_view(), name='submission-review'),
+    path('action-logs/<uuid:pk>/review/', views.ActionLogReviewView.as_view(), name='action-log-review'),
 ]
