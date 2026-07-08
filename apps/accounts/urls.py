@@ -6,6 +6,8 @@ from . import views
 urlpatterns = [
     path('register/company/', views.CompanyRegistrationView.as_view(), name='register-company'),
     path('register/employee/', views.EmployeeRegistrationView.as_view(), name='register-employee'),
+    path('verify-email/', views.VerifyEmailView.as_view(), name='verify-email'),
+    path('resend-verification/', views.ResendVerificationView.as_view(), name='resend-verification'),
     path('login/', views.NetGroveTokenObtainPairView.as_view(), name='token-obtain-pair'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
 

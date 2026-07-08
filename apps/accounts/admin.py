@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Community, Company, Department, User, UserProfile
+from .models import Community, Company, Department, EmailOTP, User, UserProfile
 
 
 @admin.register(User)
@@ -46,3 +46,11 @@ class UserProfileAdmin(admin.ModelAdmin):
 class CommunityAdmin(admin.ModelAdmin):
     list_display = ['name', 'company', 'scope', 'department']
     list_filter = ['scope', 'company']
+
+
+@admin.register(EmailOTP)
+class EmailOTPAdmin(admin.ModelAdmin):
+    list_display = ['user', 'purpose', 'is_used', 'attempts', 'expires_at', 'created_at']
+    list_filter = ['purpose', 'is_used']
+    search_fields = ['user__email']
+    readonly_fields = ['code']

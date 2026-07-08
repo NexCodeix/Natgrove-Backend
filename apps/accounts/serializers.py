@@ -1,5 +1,6 @@
 from django.db import transaction
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import Community, Company, Department, User, UserProfile, UserRole
@@ -82,12 +83,14 @@ class CompanyRegistrationSerializer(serializers.Serializer):
             first_name=validated_data.get('admin_first_name', ''),
             last_name=validated_data.get('admin_last_name', ''),
             role=UserRole.COMPANY_ADMIN,
+            is_active=False,
         )
         company = Company.objects.create(
             name=validated_data['company_name'],
             description=validated_data.get('description', ''),
             email_domain=validated_data['email_domain'],
             admin=admin_user,
+            is_active=False,
         )
         admin_user.company = company
         admin_user.save(update_fields=['company'])
@@ -109,16 +112,18 @@ class EmployeeRegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, min_length=8)
 
     def validate(self, attrs):
-        email_domain = attrs['email'].lower().split('@')[-1]
+        email = attrs['email'].lower()
+        email_domain = email.split('@')[-1]
         try:
             company = Company.objects.get(email_domain=email_domain, is_active=True)
         except Company.DoesNotExist:
             raise serializers.ValidationError(
-                {'email': f"No company is registered with the '{email_domain}' email domain."}
+                {'email': f"No verified company is registered with the '{email_domain}' email domain."}
             )
-        if User.objects.filter(email=attrs['email'].lower()).exists():
+        if User.objects.filter(email=email).exists():
             raise serializers.ValidationError({'email': 'A user with this email already exists.'})
 
+        attrs['email'] = email
         attrs['company'] = company
         return attrs
 
@@ -132,9 +137,19 @@ class EmployeeRegistrationSerializer(serializers.Serializer):
             last_name=validated_data.get('last_name', ''),
             role=UserRole.EMPLOYEE,
             company=validated_data['company'],
+            is_active=False,
         )
         UserProfile.objects.create(user=user)
         return user
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(min_length=6, max_length=6)
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
 
 
 class NetGroveTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -146,6 +161,18 @@ class NetGroveTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        email = attrs.get(self.username_field, '')
+        password = attrs.get('password', '')
+        pending_user = User.objects.filter(email__iexact=email, is_active=False).first()
+        if pending_user and pending_user.check_password(password):
+            # AuthenticationFailed stringifies every value in a dict detail (DRF's
+            # _get_error_details calls force_str on leaves), so a boolean flag here
+            # would silently become the string "True"/"False" - the `code` field is
+            # what frontends should branch on instead.
+            raise AuthenticationFailed(
+                {'detail': 'Please verify your email before logging in.'}, code='email_not_verified'
+            )
+
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
         return data

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "NetGrove - Accounts App",
-    "description": "Company onboarding, employee registration, departments, communities, and employee management. Run requests top-to-bottom the first time — each one auto-fills the environment variables the next request needs.",
+    "description": "Company onboarding, email OTP verification, employee registration, departments, communities, and employee management. Run requests top-to-bottom the first time. Registration no longer returns tokens directly — check the registered inbox for a 6-digit code and paste it into the matching 'Verify Email' request body before sending it.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -13,12 +13,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
-              "var data = pm.response.json();",
-              "pm.environment.set('access_token', data.tokens.access);",
-              "pm.environment.set('refresh_token', data.tokens.refresh);",
-              "pm.environment.set('company_id', data.user.company);",
-              "pm.environment.set('admin_user_id', data.user.id);"
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));"
             ]
           }
         }
@@ -35,7 +30,53 @@
       }
     },
     {
-      "name": "2. Login (Company Admin)",
+      "name": "2. Verify Email (Company Admin) - paste code from inbox",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "var data = pm.response.json();",
+              "pm.environment.set('access_token', data.tokens.access);",
+              "pm.environment.set('refresh_token', data.tokens.refresh);",
+              "pm.environment.set('company_id', data.user.company);",
+              "pm.environment.set('admin_user_id', data.user.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@acme.com\",\n  \"code\": \"PASTE_CODE_FROM_EMAIL\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] }
+      }
+    },
+    {
+      "name": "2b. Resend Verification Code (if it expired or didn't arrive)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@acme.com\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{base_url}}/resend-verification/",
+          "host": ["{{base_url}}"],
+          "path": ["resend-verification", ""]
+        }
+      }
+    },
+    {
+      "name": "3. Login (Company Admin)",
       "event": [
         {
           "listen": "test",
@@ -64,7 +105,7 @@
       }
     },
     {
-      "name": "3. Refresh Access Token",
+      "name": "4. Refresh Access Token",
       "event": [
         {
           "listen": "test",
@@ -90,7 +131,7 @@
       }
     },
     {
-      "name": "4. Get My Info",
+      "name": "5. Get My Info",
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
@@ -98,7 +139,7 @@
       }
     },
     {
-      "name": "5. Update My Info",
+      "name": "6. Update My Info",
       "request": {
         "method": "PATCH",
         "header": [
@@ -114,7 +155,7 @@
       }
     },
     {
-      "name": "6. Get My Profile",
+      "name": "7. Get My Profile",
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
@@ -122,7 +163,7 @@
       }
     },
     {
-      "name": "7. Update My Profile (bio + photo)",
+      "name": "8. Update My Profile (bio + photo)",
       "request": {
         "method": "PATCH",
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
@@ -137,7 +178,7 @@
       }
     },
     {
-      "name": "8. List Communities",
+      "name": "9. List Communities",
       "event": [
         {
           "listen": "test",
@@ -162,7 +203,7 @@
       }
     },
     {
-      "name": "9. Create Department",
+      "name": "10. Create Department",
       "event": [
         {
           "listen": "test",
@@ -191,7 +232,7 @@
       }
     },
     {
-      "name": "10. List Departments",
+      "name": "11. List Departments",
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
@@ -199,7 +240,7 @@
       }
     },
     {
-      "name": "11. Get Department Detail",
+      "name": "12. Get Department Detail",
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
@@ -211,18 +252,14 @@
       }
     },
     {
-      "name": "12. Register Employee (must match company email domain)",
+      "name": "13. Register Employee (must match company email domain)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
-              "var data = pm.response.json();",
-              "pm.environment.set('employee_id', data.user.id);",
-              "pm.environment.set('employee_access_token', data.tokens.access);",
-              "pm.environment.set('employee_refresh_token', data.tokens.refresh);"
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));"
             ]
           }
         }
@@ -239,7 +276,35 @@
       }
     },
     {
-      "name": "13. Login (Employee)",
+      "name": "14. Verify Email (Employee) - paste code from inbox",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "var data = pm.response.json();",
+              "pm.environment.set('employee_id', data.user.id);",
+              "pm.environment.set('employee_access_token', data.tokens.access);",
+              "pm.environment.set('employee_refresh_token', data.tokens.refresh);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"code\": \"PASTE_CODE_FROM_EMAIL\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] }
+      }
+    },
+    {
+      "name": "15. Login (Employee)",
       "event": [
         {
           "listen": "test",
@@ -267,7 +332,7 @@
       }
     },
     {
-      "name": "14. List Employees (as Admin)",
+      "name": "16. List Employees (as Admin)",
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
@@ -275,7 +340,7 @@
       }
     },
     {
-      "name": "15. Assign Employee to Department",
+      "name": "17. Assign Employee to Department",
       "request": {
         "method": "PATCH",
         "header": [
@@ -295,7 +360,7 @@
       }
     },
     {
-      "name": "16. Promote Employee to Manager",
+      "name": "18. Promote Employee to Manager",
       "request": {
         "method": "PATCH",
         "header": [
@@ -315,7 +380,7 @@
       }
     },
     {
-      "name": "17. Assign Manager to Department",
+      "name": "19. Assign Manager to Department",
       "request": {
         "method": "PATCH",
         "header": [
@@ -335,7 +400,7 @@
       }
     },
     {
-      "name": "18. Employee - Get My Info (verify department/role)",
+      "name": "20. Employee - Get My Info (verify department/role)",
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
@@ -343,7 +408,7 @@
       }
     },
     {
-      "name": "19. Negative Test - Unregistered Email Domain Rejected",
+      "name": "21. Negative Test - Unregistered Email Domain Rejected",
       "event": [
         {
           "listen": "test",
@@ -364,6 +429,58 @@
           "options": { "raw": { "language": "json" } }
         },
         "url": { "raw": "{{base_url}}/register/employee/", "host": ["{{base_url}}"], "path": ["register", "employee", ""] }
+      }
+    },
+    {
+      "name": "22. Negative Test - Login Rejected Before Verification",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+              "var data = pm.response.json();",
+              "pm.test('Error code is email_not_verified', () => pm.expect(data.code).to.eql('email_not_verified'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"password\": \"SuperSecret123\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/login/", "host": ["{{base_url}}"], "path": ["login", ""] },
+        "description": "Run this straight after step 13 (before step 14 verifies the account) to see the clear 'please verify your email' error instead of a generic login failure."
+      }
+    },
+    {
+      "name": "23. Negative Test - Wrong OTP Code Rejected",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"code\": \"000000\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] },
+        "description": "Run before step 14 with the real code to see the 'incorrect code, N attempts remaining' response. 5 wrong attempts in a row invalidate the code entirely, requiring a resend (request 2b)."
       }
     }
   ]

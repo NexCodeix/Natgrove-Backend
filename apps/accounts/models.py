@@ -1,6 +1,7 @@
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import BaseModel
 
@@ -164,3 +165,31 @@ class Community(BaseModel):
 
     def __str__(self):
         return self.name
+
+
+class OTPPurpose(models.TextChoices):
+    EMAIL_VERIFICATION = 'EMAIL_VERIFICATION', 'Email Verification'
+
+
+class EmailOTP(BaseModel):
+    """
+    A 6-digit code emailed to a user to verify they control their address.
+    Only the most recent unused code for a given (user, purpose) is valid -
+    generating a new one invalidates any prior pending code.
+    """
+
+    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='otps')
+    code = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=30, choices=OTPPurpose.choices, default=OTPPurpose.EMAIL_VERIFICATION)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    def __str__(self):
+        return f'{self.purpose} OTP for {self.user.email}'
