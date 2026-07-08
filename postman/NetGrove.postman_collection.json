@@ -1,0 +1,370 @@
+{
+  "info": {
+    "name": "NetGrove - Accounts App",
+    "description": "Company onboarding, employee registration, departments, communities, and employee management. Run requests top-to-bottom the first time — each one auto-fills the environment variables the next request needs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Register Company + Admin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+              "var data = pm.response.json();",
+              "pm.environment.set('access_token', data.tokens.access);",
+              "pm.environment.set('refresh_token', data.tokens.refresh);",
+              "pm.environment.set('company_id', data.user.company);",
+              "pm.environment.set('admin_user_id', data.user.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"company_name\": \"Acme Corp\",\n  \"email_domain\": \"acme.com\",\n  \"admin_email\": \"admin@acme.com\",\n  \"admin_username\": \"acme_admin\",\n  \"admin_first_name\": \"Alice\",\n  \"admin_password\": \"SuperSecret123\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/register/company/", "host": ["{{base_url}}"], "path": ["register", "company", ""] }
+      }
+    },
+    {
+      "name": "2. Login (Company Admin)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "var data = pm.response.json();",
+              "pm.environment.set('access_token', data.access);",
+              "pm.environment.set('refresh_token', data.refresh);",
+              "pm.environment.set('company_id', data.user.company);",
+              "pm.environment.set('admin_user_id', data.user.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@acme.com\",\n  \"password\": \"SuperSecret123\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/login/", "host": ["{{base_url}}"], "path": ["login", ""] }
+      }
+    },
+    {
+      "name": "3. Refresh Access Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "var data = pm.response.json();",
+              "pm.environment.set('access_token', data.access);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/login/refresh/", "host": ["{{base_url}}"], "path": ["login", "refresh", ""] }
+      }
+    },
+    {
+      "name": "4. Get My Info",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": { "raw": "{{base_url}}/me/", "host": ["{{base_url}}"], "path": ["me", ""] }
+      }
+    },
+    {
+      "name": "5. Update My Info",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"first_name\": \"Alice\",\n  \"last_name\": \"Smith\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/me/", "host": ["{{base_url}}"], "path": ["me", ""] }
+      }
+    },
+    {
+      "name": "6. Get My Profile",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": { "raw": "{{base_url}}/me/profile/", "host": ["{{base_url}}"], "path": ["me", "profile", ""] }
+      }
+    },
+    {
+      "name": "7. Update My Profile (bio + photo)",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "bio", "value": "Sustainability lead at Acme.", "type": "text" },
+            { "key": "profile_image", "type": "file", "src": [] }
+          ]
+        },
+        "url": { "raw": "{{base_url}}/me/profile/", "host": ["{{base_url}}"], "path": ["me", "profile", ""] }
+      }
+    },
+    {
+      "name": "8. List Communities",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "var data = pm.response.json();",
+              "var results = data.results || data;",
+              "var companyCommunity = results.find(c => c.scope === 'COMPANY');",
+              "var deptCommunity = results.find(c => c.scope === 'DEPARTMENT');",
+              "if (companyCommunity) pm.environment.set('company_community_id', companyCommunity.id);",
+              "if (deptCommunity) pm.environment.set('department_community_id', deptCommunity.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": { "raw": "{{base_url}}/communities/", "host": ["{{base_url}}"], "path": ["communities", ""] }
+      }
+    },
+    {
+      "name": "9. Create Department",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+              "var data = pm.response.json();",
+              "pm.environment.set('department_id', data.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Sustainability\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/departments/", "host": ["{{base_url}}"], "path": ["departments", ""] }
+      }
+    },
+    {
+      "name": "10. List Departments",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": { "raw": "{{base_url}}/departments/", "host": ["{{base_url}}"], "path": ["departments", ""] }
+      }
+    },
+    {
+      "name": "11. Get Department Detail",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/departments/{{department_id}}/",
+          "host": ["{{base_url}}"],
+          "path": ["departments", "{{department_id}}", ""]
+        }
+      }
+    },
+    {
+      "name": "12. Register Employee (must match company email domain)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+              "var data = pm.response.json();",
+              "pm.environment.set('employee_id', data.user.id);",
+              "pm.environment.set('employee_access_token', data.tokens.access);",
+              "pm.environment.set('employee_refresh_token', data.tokens.refresh);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"company_id\": \"{{company_id}}\",\n  \"email\": \"bob@acme.com\",\n  \"username\": \"bob\",\n  \"password\": \"SuperSecret123\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/register/employee/", "host": ["{{base_url}}"], "path": ["register", "employee", ""] }
+      }
+    },
+    {
+      "name": "13. Login (Employee)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "var data = pm.response.json();",
+              "pm.environment.set('employee_access_token', data.access);",
+              "pm.environment.set('employee_refresh_token', data.refresh);",
+              "pm.environment.set('employee_id', data.user.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"password\": \"SuperSecret123\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/login/", "host": ["{{base_url}}"], "path": ["login", ""] }
+      }
+    },
+    {
+      "name": "14. List Employees (as Admin)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": { "raw": "{{base_url}}/employees/", "host": ["{{base_url}}"], "path": ["employees", ""] }
+      }
+    },
+    {
+      "name": "15. Assign Employee to Department",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"department\": \"{{department_id}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{base_url}}/employees/{{employee_id}}/role/",
+          "host": ["{{base_url}}"],
+          "path": ["employees", "{{employee_id}}", "role", ""]
+        }
+      }
+    },
+    {
+      "name": "16. Promote Employee to Manager",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"MANAGER\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{base_url}}/employees/{{employee_id}}/role/",
+          "host": ["{{base_url}}"],
+          "path": ["employees", "{{employee_id}}", "role", ""]
+        }
+      }
+    },
+    {
+      "name": "17. Assign Manager to Department",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"manager\": \"{{employee_id}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{base_url}}/departments/{{department_id}}/",
+          "host": ["{{base_url}}"],
+          "path": ["departments", "{{department_id}}", ""]
+        }
+      }
+    },
+    {
+      "name": "18. Employee - Get My Info (verify department/role)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+        "url": { "raw": "{{base_url}}/me/", "host": ["{{base_url}}"], "path": ["me", ""] }
+      }
+    },
+    {
+      "name": "19. Negative Test - Wrong Email Domain Rejected",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 400 (rejected)', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"company_id\": \"{{company_id}}\",\n  \"email\": \"eve@gmail.com\",\n  \"username\": \"eve\",\n  \"password\": \"SuperSecret123\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{base_url}}/register/employee/", "host": ["{{base_url}}"], "path": ["register", "employee", ""] }
+      }
+    }
+  ]
+}
