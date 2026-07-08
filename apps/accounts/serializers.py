@@ -96,7 +96,12 @@ class CompanyRegistrationSerializer(serializers.Serializer):
 
 
 class EmployeeRegistrationSerializer(serializers.Serializer):
-    company_id = serializers.UUIDField()
+    """
+    Employees only ever provide their normal work email - the company is
+    looked up from the email's domain, not passed in by the client. There is
+    no way for an employee to know their company's internal id up front.
+    """
+
     email = serializers.EmailField()
     username = serializers.CharField(max_length=150)
     first_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
@@ -104,15 +109,12 @@ class EmployeeRegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, min_length=8)
 
     def validate(self, attrs):
-        try:
-            company = Company.objects.get(id=attrs['company_id'], is_active=True)
-        except Company.DoesNotExist:
-            raise serializers.ValidationError({'company_id': 'No active company found with this id.'})
-
         email_domain = attrs['email'].lower().split('@')[-1]
-        if email_domain != company.email_domain.lower():
+        try:
+            company = Company.objects.get(email_domain=email_domain, is_active=True)
+        except Company.DoesNotExist:
             raise serializers.ValidationError(
-                {'email': f"Email must belong to the '{company.email_domain}' domain to join this company."}
+                {'email': f"No company is registered with the '{email_domain}' email domain."}
             )
         if User.objects.filter(email=attrs['email'].lower()).exists():
             raise serializers.ValidationError({'email': 'A user with this email already exists.'})
