@@ -3,19 +3,17 @@ from rest_framework import serializers
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Community, Company, Department, User, UserProfile, UserRole
+from .models import Community, Company, Department, User, UserProfile, UserRole, generate_unique_username
 
 
 class UserSerializer(serializers.ModelSerializer):
-    full_name = serializers.CharField(read_only=True)
-
     class Meta:
         model = User
         fields = [
-            'id', 'email', 'username', 'first_name', 'last_name', 'full_name',
+            'id', 'email', 'username', 'full_name',
             'role', 'company', 'department', 'is_active', 'created_at',
         ]
-        read_only_fields = ['id', 'role', 'company', 'department', 'is_active', 'created_at']
+        read_only_fields = ['id', 'username', 'role', 'company', 'department', 'is_active', 'created_at']
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -54,11 +52,10 @@ class CompanyRegistrationSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True, default='')
     email_domain = serializers.CharField(max_length=255)
 
+    admin_full_name = serializers.CharField(max_length=255)
     admin_email = serializers.EmailField()
-    admin_username = serializers.CharField(max_length=150)
-    admin_first_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
-    admin_last_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
     admin_password = serializers.CharField(write_only=True, min_length=8)
+    admin_confirm_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate_email_domain(self, value):
         value = value.lower().lstrip('@')
@@ -74,14 +71,18 @@ class CompanyRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError('A user with this email already exists.')
         return value
 
+    def validate(self, attrs):
+        if attrs['admin_password'] != attrs.pop('admin_confirm_password'):
+            raise serializers.ValidationError({'admin_confirm_password': 'Passwords do not match.'})
+        return attrs
+
     @transaction.atomic
     def create(self, validated_data):
         admin_user = User.objects.create_user(
             email=validated_data['admin_email'],
-            username=validated_data['admin_username'],
+            username=generate_unique_username(validated_data['admin_email']),
             password=validated_data['admin_password'],
-            first_name=validated_data.get('admin_first_name', ''),
-            last_name=validated_data.get('admin_last_name', ''),
+            full_name=validated_data['admin_full_name'],
             role=UserRole.COMPANY_ADMIN,
             is_active=False,
         )
@@ -105,13 +106,15 @@ class EmployeeRegistrationSerializer(serializers.Serializer):
     no way for an employee to know their company's internal id up front.
     """
 
+    full_name = serializers.CharField(max_length=255)
     email = serializers.EmailField()
-    username = serializers.CharField(max_length=150)
-    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
-    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
     password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate(self, attrs):
+        if attrs['password'] != attrs.pop('confirm_password'):
+            raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
+
         email = attrs['email'].lower()
         email_domain = email.split('@')[-1]
         try:
@@ -131,10 +134,9 @@ class EmployeeRegistrationSerializer(serializers.Serializer):
     def create(self, validated_data):
         user = User.objects.create_user(
             email=validated_data['email'],
-            username=validated_data['username'],
+            username=generate_unique_username(validated_data['email']),
             password=validated_data['password'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
+            full_name=validated_data['full_name'],
             role=UserRole.EMPLOYEE,
             company=validated_data['company'],
             is_active=False,
@@ -145,7 +147,7 @@ class EmployeeRegistrationSerializer(serializers.Serializer):
 
 class VerifyEmailSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    code = serializers.CharField(min_length=6, max_length=6)
+    code = serializers.CharField(min_length=4, max_length=4)
 
 
 class ResendVerificationSerializer(serializers.Serializer):

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "NetGrove - Accounts App",
-    "description": "Company onboarding, email OTP verification, employee registration, departments, communities, and employee management. Run requests top-to-bottom the first time. Registration no longer returns tokens directly — check the registered inbox for a 6-digit code and paste it into the matching 'Verify Email' request body before sending it.",
+    "description": "Company onboarding, email OTP verification, employee registration, departments, communities, and employee management. Run requests top-to-bottom the first time. Registration no longer returns tokens directly — check the registered inbox for a 4-digit code and paste it into the matching 'Verify Email' request body before sending it.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -23,7 +23,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"company_name\": \"Acme Corp\",\n  \"email_domain\": \"acme.com\",\n  \"admin_email\": \"admin@acme.com\",\n  \"admin_username\": \"acme_admin\",\n  \"admin_first_name\": \"Alice\",\n  \"admin_password\": \"SuperSecret123\"\n}",
+          "raw": "{\n  \"company_name\": \"Acme Corp\",\n  \"email_domain\": \"acme.com\",\n  \"admin_full_name\": \"Alice Smith\",\n  \"admin_email\": \"admin@acme.com\",\n  \"admin_password\": \"SuperSecret123\",\n  \"admin_confirm_password\": \"SuperSecret123\"\n}",
           "options": { "raw": { "language": "json" } }
         },
         "url": { "raw": "{{base_url}}/register/company/", "host": ["{{base_url}}"], "path": ["register", "company", ""] }
@@ -148,7 +148,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"first_name\": \"Alice\",\n  \"last_name\": \"Smith\"\n}",
+          "raw": "{\n  \"full_name\": \"Alice Smith\"\n}",
           "options": { "raw": { "language": "json" } }
         },
         "url": { "raw": "{{base_url}}/me/", "host": ["{{base_url}}"], "path": ["me", ""] }
@@ -269,7 +269,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"username\": \"bob\",\n  \"password\": \"SuperSecret123\"\n}",
+          "raw": "{\n  \"full_name\": \"Bob Employee\",\n  \"email\": \"bob@acme.com\",\n  \"password\": \"SuperSecret123\",\n  \"confirm_password\": \"SuperSecret123\"\n}",
           "options": { "raw": { "language": "json" } }
         },
         "url": { "raw": "{{base_url}}/register/employee/", "host": ["{{base_url}}"], "path": ["register", "employee", ""] }
@@ -425,7 +425,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"eve@gmail.com\",\n  \"username\": \"eve\",\n  \"password\": \"SuperSecret123\"\n}",
+          "raw": "{\n  \"full_name\": \"Eve Example\",\n  \"email\": \"eve@gmail.com\",\n  \"password\": \"SuperSecret123\",\n  \"confirm_password\": \"SuperSecret123\"\n}",
           "options": { "raw": { "language": "json" } }
         },
         "url": { "raw": "{{base_url}}/register/employee/", "host": ["{{base_url}}"], "path": ["register", "employee", ""] }
@@ -476,7 +476,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"code\": \"000000\"\n}",
+          "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"code\": \"0000\"\n}",
           "options": { "raw": { "language": "json" } }
         },
         "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] },

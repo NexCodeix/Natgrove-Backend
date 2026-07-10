@@ -46,7 +46,7 @@ class CompanyRegistrationView(APIView):
             return Response(EMAIL_SEND_FAILURE_RESPONSE, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(
             {
-                'detail': 'Registration successful. Check your email for a 6-digit verification code.',
+                'detail': 'Registration successful. Check your email for a 4-digit verification code.',
                 'email': admin_user.email,
             },
             status=status.HTTP_201_CREATED,
@@ -67,7 +67,7 @@ class EmployeeRegistrationView(APIView):
             return Response(EMAIL_SEND_FAILURE_RESPONSE, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(
             {
-                'detail': 'Registration successful. Check your email for a 6-digit verification code.',
+                'detail': 'Registration successful. Check your email for a 4-digit verification code.',
                 'email': user.email,
             },
             status=status.HTTP_201_CREATED,

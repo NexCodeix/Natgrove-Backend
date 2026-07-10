@@ -20,7 +20,7 @@ def generate_and_send_otp(user, purpose=OTPPurpose.EMAIL_VERIFICATION):
     """Invalidates any prior pending code for this (user, purpose) and emails a fresh one."""
     EmailOTP.objects.filter(user=user, purpose=purpose, is_used=False).update(is_used=True)
 
-    code = f'{secrets.randbelow(1_000_000):06d}'
+    code = f'{secrets.randbelow(10_000):04d}'
     otp = EmailOTP.objects.create(
         user=user,
         code=code,

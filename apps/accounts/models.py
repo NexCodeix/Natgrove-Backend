@@ -1,3 +1,5 @@
+import re
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
@@ -45,8 +47,7 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=150, unique=True)
-    first_name = models.CharField(max_length=150, blank=True)
-    last_name = models.CharField(max_length=150, blank=True)
+    full_name = models.CharField(max_length=255, blank=True)
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.EMPLOYEE)
     company = models.ForeignKey(
         'accounts.Company', null=True, blank=True, on_delete=models.SET_NULL, related_name='employees'
@@ -68,10 +69,6 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     def __str__(self):
         return self.email
 
-    @property
-    def full_name(self):
-        return f'{self.first_name} {self.last_name}'.strip() or self.username
-
     def community_ids(self):
         ids = list(
             Community.objects.filter(company_id=self.company_id, scope=CommunityScope.COMPANY).values_list(
@@ -81,6 +78,21 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
         if self.department_id:
             ids += list(Community.objects.filter(department_id=self.department_id).values_list('id', flat=True))
         return ids
+
+
+def generate_unique_username(email):
+    """
+    Sign-up forms only collect full name + email, not a username, but the
+    model keeps one internally (Django admin, createsuperuser). Derive it
+    from the email's local part and disambiguate on collision.
+    """
+    base = re.sub(r'[^a-z0-9_.]', '', email.split('@')[0].lower()) or 'user'
+    username = base
+    suffix = 1
+    while User.objects.filter(username=username).exists():
+        suffix += 1
+        username = f'{base}{suffix}'
+    return username
 
 
 class Company(BaseModel):
@@ -173,13 +185,13 @@ class OTPPurpose(models.TextChoices):
 
 class EmailOTP(BaseModel):
     """
-    A 6-digit code emailed to a user to verify they control their address.
+    A 4-digit code emailed to a user to verify they control their address.
     Only the most recent unused code for a given (user, purpose) is valid -
     generating a new one invalidates any prior pending code.
     """
 
     user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='otps')
-    code = models.CharField(max_length=6)
+    code = models.CharField(max_length=4)
     purpose = models.CharField(max_length=30, choices=OTPPurpose.choices, default=OTPPurpose.EMAIL_VERIFICATION)
     expires_at = models.DateTimeField()
     is_used = models.BooleanField(default=False)
