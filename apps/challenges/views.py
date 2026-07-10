@@ -48,7 +48,9 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Challenge.objects.filter(company=user.company, is_archived=False)
+        archived_param = self.request.query_params.get('archived', 'false')
+        is_archived = archived_param.lower() in ('true', '1')
+        qs = Challenge.objects.filter(company=user.company, is_archived=is_archived)
         if user.role not in (UserRole.COMPANY_ADMIN, UserRole.MANAGER):
             qs = qs.filter(Q(communities__id__in=user.community_ids()) | Q(communities__isnull=True)).distinct()
         status_param = self.request.query_params.get('status')
@@ -65,7 +67,7 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
         serializer.save(company=self.request.user.company, created_by=self.request.user)
 
 
-class ChallengeDetailView(generics.RetrieveUpdateAPIView):
+class ChallengeDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ChallengeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -73,9 +75,18 @@ class ChallengeDetailView(generics.RetrieveUpdateAPIView):
         return Challenge.objects.filter(company=self.request.user.company)
 
     def get_permissions(self):
-        if self.request.method in ('PATCH', 'PUT'):
+        if self.request.method in ('PATCH', 'PUT', 'DELETE'):
             return [permissions.IsAuthenticated(), IsManagerOrAdmin()]
         return super().get_permissions()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.status not in (ChallengeStatus.DRAFT, ChallengeStatus.CANCELLED):
+            return Response(
+                {'detail': 'Only draft or cancelled challenges can be deleted. Cancel it first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
 
 
 class ChallengeJoinView(APIView):
@@ -118,7 +129,10 @@ class LogActionView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        action_log = serializer.save(participation=participation, points_awarded=action_item.default_points)
+        action_log = serializer.save(
+            participation=participation, points_awarded=action_item.default_points,
+            co2_impact_kg=action_item.co2_impact_kg,
+        )
         return Response(ActionLogSerializer(action_log).data, status=status.HTTP_201_CREATED)
 
 

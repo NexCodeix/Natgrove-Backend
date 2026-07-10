@@ -114,6 +114,27 @@ class Challenge(BaseModel):
         return ActionLog.objects.filter(participation__challenge=self, status=ActionStatus.APPROVED)
 
     @property
+    def participant_count(self):
+        return self.participations.count()
+
+    @property
+    def estimated_audience_count(self):
+        """Deduplicated headcount across all communities this challenge is scoped to."""
+        user_ids = set()
+        for community in self.communities.all():
+            user_ids.update(community.member_queryset().values_list('id', flat=True))
+        return len(user_ids)
+
+    @property
+    def estimated_co2_impact_kg(self):
+        """Sum of the CO2 impact of each selected action, before anyone has actually logged one."""
+        return self.actions.aggregate(total=Sum('co2_impact_kg'))['total'] or 0
+
+    @property
+    def actual_co2_saved_kg(self):
+        return self.approved_action_logs.aggregate(total=Sum('co2_impact_kg'))['total'] or 0
+
+    @property
     def goal_progress(self):
         if self.challenge_format != ChallengeFormat.GOAL or not self.goal_count:
             return None
@@ -169,6 +190,10 @@ class ActionLog(BaseModel):
     participation = models.ForeignKey(ChallengeParticipation, on_delete=models.CASCADE, related_name='submissions')
     action_catalog_item = models.ForeignKey(ActionCatalogItem, on_delete=models.PROTECT, related_name='logs')
     points_awarded = models.PositiveIntegerField(help_text='Snapshot of the catalog item points at submission time.')
+    co2_impact_kg = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0,
+        help_text='Snapshot of the catalog item CO2 impact at submission time.',
+    )
     proof_image = models.ImageField(upload_to='action_proofs/')
     caption = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=ActionStatus.choices, default=ActionStatus.PENDING)

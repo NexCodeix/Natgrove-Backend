@@ -1,0 +1,658 @@
+{
+  "info": {
+    "name": "NetGrove - Challenges App",
+    "description": "Self-contained: registers its own company admin + employee (reuses the same 'NetGrove Local' environment as the Accounts collection). Registration needs a real email OTP - check the inbox and paste the 4-digit code into the 'Verify Email' request bodies before sending them. Run top-to-bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "1. Register Company + Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"Acme Corp\",\n  \"email_domain\": \"acme.com\",\n  \"admin_full_name\": \"Alice Smith\",\n  \"admin_email\": \"admin@acme.com\",\n  \"admin_password\": \"SuperSecret123\",\n  \"admin_confirm_password\": \"SuperSecret123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/register/company/", "host": ["{{base_url}}"], "path": ["register", "company", ""] }
+          }
+        },
+        {
+          "name": "2. Verify Email (Admin) - paste code from inbox",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('access_token', data.tokens.access);",
+                  "pm.environment.set('company_id', data.user.company);",
+                  "pm.environment.set('admin_user_id', data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@acme.com\",\n  \"code\": \"PASTE_CODE_FROM_EMAIL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] }
+          }
+        },
+        {
+          "name": "3. Create Department",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('department_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sustainability\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/departments/", "host": ["{{base_url}}"], "path": ["departments", ""] }
+          }
+        },
+        {
+          "name": "4. Register Employee",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Bob Employee\",\n  \"email\": \"bob@acme.com\",\n  \"password\": \"SuperSecret123\",\n  \"confirm_password\": \"SuperSecret123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/register/employee/", "host": ["{{base_url}}"], "path": ["register", "employee", ""] }
+          }
+        },
+        {
+          "name": "5. Verify Email (Employee) - paste code from inbox",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('employee_access_token', data.tokens.access);",
+                  "pm.environment.set('employee_id', data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"code\": \"PASTE_CODE_FROM_EMAIL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] }
+          }
+        },
+        {
+          "name": "6. Assign Employee to Department",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"department\": \"{{department_id}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/employees/{{employee_id}}/role/",
+              "host": ["{{base_url}}"],
+              "path": ["employees", "{{employee_id}}", "role", ""]
+            }
+          }
+        },
+        {
+          "name": "7. List Communities (capture company + department community ids)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "var results = data.results || data;",
+                  "var companyCommunity = results.find(c => c.scope === 'COMPANY');",
+                  "var deptCommunity = results.find(c => c.scope === 'DEPARTMENT');",
+                  "if (companyCommunity) pm.environment.set('company_community_id', companyCommunity.id);",
+                  "if (deptCommunity) pm.environment.set('department_community_id', deptCommunity.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{base_url}}/communities/", "host": ["{{base_url}}"], "path": ["communities", ""] }
+          }
+        },
+        {
+          "name": "8. List Action Catalog - Water Saving (capture an action id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "var results = data.results || data;",
+                  "if (results.length) pm.environment.set('action_id_water', results[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/action-catalog/?category=WATER_SAVING",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-catalog", ""],
+              "query": [{ "key": "category", "value": "WATER_SAVING" }]
+            }
+          }
+        },
+        {
+          "name": "9. List Action Catalog - Recycling (capture a second action id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "var results = data.results || data;",
+                  "if (results.length) pm.environment.set('action_id_recycling', results[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/action-catalog/?category=RECYCLING",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-catalog", ""],
+              "query": [{ "key": "category", "value": "RECYCLING" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Create & Manage Challenges",
+      "item": [
+        {
+          "name": "10. Create Challenge - Timeline Format (company-wide, no actions)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('challenge_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Recycling Drive\",\n  \"description\": \"Reduce product wastage by recycling.\",\n  \"how_to_play\": \"Recycle at least one item and log it with a photo.\",\n  \"rules\": \"One log per action per day.\",\n  \"challenge_type\": \"RECYCLING\",\n  \"challenge_format\": \"TIMELINE\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-31T00:00:00Z\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{challenges_base_url}}/", "host": ["{{challenges_base_url}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "11. Create Challenge - Goal Format (actions + department community + prize)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('goal_challenge_id', data.id);",
+                  "pm.test('estimated_co2_impact_kg is present', () => pm.expect(data.estimated_co2_impact_kg).to.not.be.undefined);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Reuse a Cup Challenge\",\n  \"description\": \"Cut down single-use cup waste as a department.\",\n  \"challenge_type\": \"WATER_SAVING\",\n  \"actions\": [\"{{action_id_water}}\"],\n  \"communities\": [\"{{department_community_id}}\"],\n  \"challenge_format\": \"GOAL\",\n  \"goal_metric\": \"TOTAL_ACTIONS\",\n  \"goal_title\": \"Log 5 water-saving actions\",\n  \"goal_count\": 5,\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"status\": \"ACTIVE\",\n  \"prize_type\": \"VOUCHER\",\n  \"prizes\": [\n    { \"rank\": 1, \"title\": \"Adidas Voucher\", \"description\": \"10% off\" },\n    { \"rank\": 2, \"title\": \"Coffee Shop Voucher\", \"description\": \"Free coffee\" }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{challenges_base_url}}/", "host": ["{{challenges_base_url}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "12. List Challenges (Admin - sees all)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{challenges_base_url}}/", "host": ["{{challenges_base_url}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "13. List Challenges Filtered by Status=ACTIVE",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/?status=ACTIVE",
+              "host": ["{{challenges_base_url}}"],
+              "path": [""],
+              "query": [{ "key": "status", "value": "ACTIVE" }]
+            }
+          }
+        },
+        {
+          "name": "14. Get Challenge Detail (Goal Challenge - inspect computed stats)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "15. Update Challenge (edit description)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated: cut down single-use cup waste department-wide this month.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employee - Join & Log Actions",
+      "item": [
+        {
+          "name": "16. Employee - List Visible Challenges (community-scoped)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "url": { "raw": "{{challenges_base_url}}/", "host": ["{{challenges_base_url}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "17. Employee - Join Goal Challenge",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/join/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", "join", ""]
+            }
+          }
+        },
+        {
+          "name": "18. Employee - Log Action (upload proof photo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('action_log_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "action_catalog_item", "value": "{{action_id_water}}", "type": "text" },
+                { "key": "caption", "value": "Reused my cup at the office kitchen.", "type": "text" },
+                { "key": "proof_image", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/log-action/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", "log-action", ""]
+            }
+          }
+        },
+        {
+          "name": "19. Employee - My Participations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/my-participations/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["my-participations", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Review Submissions",
+      "item": [
+        {
+          "name": "20. Admin - Review Queue for Goal Challenge (pending logs)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/action-logs/?status=PENDING",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", "action-logs", ""],
+              "query": [{ "key": "status", "value": "PENDING" }]
+            }
+          }
+        },
+        {
+          "name": "21. Admin - Approve Action Log",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\",\n  \"review_note\": \"Nice work!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/action-logs/{{action_log_id}}/review/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-logs", "{{action_log_id}}", "review", ""]
+            }
+          }
+        },
+        {
+          "name": "22. Get Challenge Detail Again (confirm stats updated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var data = pm.response.json();",
+                  "pm.test('participant_count is 1', () => pm.expect(data.participant_count).to.eql(1));",
+                  "pm.test('goal_progress current is 1', () => pm.expect(data.goal_progress.current).to.eql(1));",
+                  "pm.test('actual_co2_saved_kg is greater than 0', () => pm.expect(parseFloat(data.actual_co2_saved_kg)).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "23. Admin - Get Challenge Participants",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/participants/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", "participants", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Archive, Cancel, Delete",
+      "item": [
+        {
+          "name": "24. Archive the Timeline Challenge",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_archived\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/{{challenge_id}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{challenge_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "25. List Archived Challenges (?archived=true)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var data = pm.response.json();",
+                  "pm.test('archived list includes the archived challenge', () => pm.expect(data.count).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/?archived=true",
+              "host": ["{{challenges_base_url}}"],
+              "path": [""],
+              "query": [{ "key": "archived", "value": "true" }]
+            }
+          }
+        },
+        {
+          "name": "26. Create Draft Challenge (for delete test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('draft_challenge_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Draft Challenge To Delete\",\n  \"challenge_type\": \"OTHER\",\n  \"challenge_format\": \"TIMELINE\",\n  \"start_date\": \"2026-08-01T00:00:00Z\",\n  \"end_date\": \"2026-08-15T00:00:00Z\",\n  \"status\": \"DRAFT\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{challenges_base_url}}/", "host": ["{{challenges_base_url}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "27. Delete Draft Challenge (should succeed, 204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{draft_challenge_id}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{draft_challenge_id}}", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negative Tests",
+      "item": [
+        {
+          "name": "28. Delete ACTIVE Goal Challenge (should be rejected, 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "29. Employee Tries to Create a Challenge (should be 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Should Not Be Allowed\",\n  \"challenge_type\": \"OTHER\",\n  \"start_date\": \"2026-08-01T00:00:00Z\",\n  \"end_date\": \"2026-08-15T00:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{challenges_base_url}}/", "host": ["{{challenges_base_url}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "30. Employee Tries to Delete a Challenge (should be 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{goal_challenge_id}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{goal_challenge_id}}", ""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

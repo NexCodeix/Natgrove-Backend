@@ -33,6 +33,10 @@ class ChallengeSerializer(serializers.ModelSerializer):
     communities = serializers.PrimaryKeyRelatedField(many=True, queryset=Community.objects.all(), required=False)
     prizes = ChallengePrizeSerializer(many=True, required=False)
     goal_progress = serializers.ReadOnlyField()
+    participant_count = serializers.ReadOnlyField()
+    estimated_audience_count = serializers.ReadOnlyField()
+    estimated_co2_impact_kg = serializers.ReadOnlyField()
+    actual_co2_saved_kg = serializers.ReadOnlyField()
 
     class Meta:
         model = Challenge
@@ -40,7 +44,8 @@ class ChallengeSerializer(serializers.ModelSerializer):
             'id', 'company', 'created_by', 'title', 'description', 'how_to_play', 'rules', 'image',
             'challenge_type', 'actions', 'communities', 'challenge_format', 'goal_metric', 'goal_title',
             'goal_count', 'start_date', 'end_date', 'status', 'is_archived', 'prize_type', 'prizes',
-            'goal_progress', 'created_at',
+            'goal_progress', 'participant_count', 'estimated_audience_count', 'estimated_co2_impact_kg',
+            'actual_co2_saved_kg', 'created_at',
         ]
         read_only_fields = ['id', 'company', 'created_by', 'created_at']
 
@@ -106,11 +111,12 @@ class ActionLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActionLog
         fields = [
-            'id', 'participation', 'action_catalog_item', 'action_name', 'points_awarded', 'proof_image',
-            'caption', 'status', 'submitted_at', 'reviewed_by', 'reviewed_at', 'review_note',
+            'id', 'participation', 'action_catalog_item', 'action_name', 'points_awarded', 'co2_impact_kg',
+            'proof_image', 'caption', 'status', 'submitted_at', 'reviewed_by', 'reviewed_at', 'review_note',
         ]
         read_only_fields = [
-            'id', 'participation', 'points_awarded', 'status', 'submitted_at', 'reviewed_by', 'reviewed_at',
+            'id', 'participation', 'points_awarded', 'co2_impact_kg', 'status', 'submitted_at',
+            'reviewed_by', 'reviewed_at',
         ]
 
 
