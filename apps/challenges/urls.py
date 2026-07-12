@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('action-catalog/', views.ActionCatalogListView.as_view(), name='action-catalog-list'),
+    path('company-actions/<uuid:pk>/', views.CompanyActionToggleView.as_view(), name='company-action-toggle'),
 
     path('', views.ChallengeListCreateView.as_view(), name='challenge-list-create'),
     path('<uuid:pk>/', views.ChallengeDetailView.as_view(), name='challenge-detail'),

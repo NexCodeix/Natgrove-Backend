@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import ActionCatalogItem, ActionLog, Challenge, ChallengeParticipation, ChallengePrize
+from .models import (
+    ActionCatalogItem,
+    ActionLog,
+    Challenge,
+    ChallengeParticipation,
+    ChallengePrize,
+    CompanyActionSetting,
+)
 
 
 @admin.register(ActionCatalogItem)
@@ -8,6 +15,13 @@ class ActionCatalogItemAdmin(admin.ModelAdmin):
     list_display = ['name', 'category', 'default_points', 'co2_impact_kg', 'is_active']
     list_filter = ['category', 'is_active']
     search_fields = ['name']
+
+
+@admin.register(CompanyActionSetting)
+class CompanyActionSettingAdmin(admin.ModelAdmin):
+    list_display = ['company', 'action_catalog_item', 'is_enabled']
+    list_filter = ['is_enabled', 'company']
+    search_fields = ['company__name', 'action_catalog_item__name']
 
 
 class ChallengePrizeInline(admin.TabularInline):

@@ -75,6 +75,25 @@ class ActionCatalogItem(BaseModel):
         return self.name
 
 
+class CompanyActionSetting(BaseModel):
+    """
+    Per-company override on the shared, platform-wide action catalog. Absence
+    of a row means enabled (opt-out model) - a brand-new company immediately
+    has the full catalog available without any setup, and just disables the
+    handful of actions it doesn't want to offer.
+    """
+
+    company = models.ForeignKey('accounts.Company', on_delete=models.CASCADE, related_name='action_settings')
+    action_catalog_item = models.ForeignKey(ActionCatalogItem, on_delete=models.CASCADE, related_name='company_settings')
+    is_enabled = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('company', 'action_catalog_item')
+
+    def __str__(self):
+        return f'{self.action_catalog_item.name} for {self.company.name}: {"enabled" if self.is_enabled else "disabled"}'
+
+
 class Challenge(BaseModel):
     company = models.ForeignKey('accounts.Company', on_delete=models.CASCADE, related_name='challenges')
     created_by = models.ForeignKey(

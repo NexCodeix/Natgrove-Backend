@@ -1,3 +1,4 @@
+from django.db.models import Avg
 from rest_framework import serializers
 
 from apps.accounts.models import Community, CommunityScope
@@ -5,18 +6,67 @@ from apps.accounts.models import Community, CommunityScope
 from .models import (
     ActionCatalogItem,
     ActionLog,
+    ActionStatus,
     Challenge,
     ChallengeFormat,
     ChallengeParticipation,
     ChallengePrize,
+    CompanyActionSetting,
 )
 
 
 class ActionCatalogItemSerializer(serializers.ModelSerializer):
+    is_enabled = serializers.SerializerMethodField()
+    times_completed = serializers.SerializerMethodField()
+    avg_co2_saved_kg = serializers.SerializerMethodField()
+    challenges_count = serializers.SerializerMethodField()
+
     class Meta:
         model = ActionCatalogItem
-        fields = ['id', 'name', 'description', 'icon', 'category', 'default_points', 'co2_impact_kg', 'is_active']
+        fields = [
+            'id', 'name', 'description', 'icon', 'category', 'default_points', 'co2_impact_kg', 'is_active',
+            'is_enabled', 'times_completed', 'avg_co2_saved_kg', 'challenges_count',
+        ]
         read_only_fields = ['id']
+
+    def _company(self):
+        request = self.context.get('request')
+        if request and getattr(request, 'user', None) and request.user.is_authenticated:
+            return request.user.company
+        return None
+
+    def get_is_enabled(self, obj):
+        company = self._company()
+        if not company:
+            return obj.is_active
+        setting = next((s for s in obj.company_settings.all() if s.company_id == company.id), None)
+        return setting.is_enabled if setting else True
+
+    def get_times_completed(self, obj):
+        company = self._company()
+        qs = obj.logs.filter(status=ActionStatus.APPROVED)
+        if company:
+            qs = qs.filter(participation__challenge__company=company)
+        return qs.count()
+
+    def get_avg_co2_saved_kg(self, obj):
+        company = self._company()
+        qs = obj.logs.filter(status=ActionStatus.APPROVED)
+        if company:
+            qs = qs.filter(participation__challenge__company=company)
+        avg = qs.aggregate(avg=Avg('co2_impact_kg'))['avg']
+        return avg if avg is not None else obj.co2_impact_kg
+
+    def get_challenges_count(self, obj):
+        company = self._company()
+        qs = obj.challenges.all()
+        if company:
+            qs = qs.filter(company=company)
+        return qs.count()
+
+
+class CompanyActionToggleSerializer(serializers.Serializer):
+    is_enabled = serializers.BooleanField()
 
 
 class ChallengePrizeSerializer(serializers.ModelSerializer):
@@ -65,6 +115,17 @@ class ChallengeSerializer(serializers.ModelSerializer):
             if community.company_id != request.user.company_id:
                 raise serializers.ValidationError('All communities must belong to your own company.')
         return communities
+
+    def validate_actions(self, actions):
+        request = self.context['request']
+        disabled_names = CompanyActionSetting.objects.filter(
+            company_id=request.user.company_id, action_catalog_item__in=actions, is_enabled=False,
+        ).values_list('action_catalog_item__name', flat=True)
+        if disabled_names:
+            raise serializers.ValidationError(
+                f'These actions have been disabled for your company: {", ".join(disabled_names)}.'
+            )
+        return actions
 
     def create(self, validated_data):
         prizes_data = validated_data.pop('prizes', [])

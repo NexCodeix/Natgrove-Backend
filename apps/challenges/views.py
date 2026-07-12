@@ -16,12 +16,14 @@ from .models import (
     ChallengeFormat,
     ChallengeParticipation,
     ChallengeStatus,
+    CompanyActionSetting,
 )
 from .serializers import (
     ActionCatalogItemSerializer,
     ActionLogSerializer,
     ChallengeParticipationSerializer,
     ChallengeSerializer,
+    CompanyActionToggleSerializer,
     LogActionSerializer,
     SubmissionReviewSerializer,
 )
@@ -29,7 +31,10 @@ from .signals import challenge_goal_reached, submission_approved, submission_rej
 
 
 class ActionCatalogListView(generics.ListAPIView):
-    """Platform-wide library of loggable actions, for the challenge builder to pick from."""
+    """
+    Platform-wide library of loggable actions, for the challenge builder to
+    pick from and for the company admin's Actions management page.
+    """
 
     serializer_class = ActionCatalogItemSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -39,7 +44,33 @@ class ActionCatalogListView(generics.ListAPIView):
         category = self.request.query_params.get('category')
         if category:
             qs = qs.filter(category=category)
+
+        status_param = self.request.query_params.get('status')
+        if status_param in ('enabled', 'disabled') and self.request.user.company_id:
+            disabled_ids = CompanyActionSetting.objects.filter(
+                company_id=self.request.user.company_id, is_enabled=False,
+            ).values_list('action_catalog_item_id', flat=True)
+            qs = qs.exclude(id__in=disabled_ids) if status_param == 'enabled' else qs.filter(id__in=disabled_ids)
         return qs
+
+
+class CompanyActionToggleView(APIView):
+    """Company admin/manager enables or disables one shared catalog action for their own company only."""
+
+    permission_classes = [permissions.IsAuthenticated, IsManagerOrAdmin]
+
+    def patch(self, request, pk):
+        action_item = get_object_or_404(ActionCatalogItem, pk=pk, is_active=True)
+        serializer = CompanyActionToggleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        CompanyActionSetting.objects.update_or_create(
+            company_id=request.user.company_id, action_catalog_item=action_item,
+            defaults={'is_enabled': serializer.validated_data['is_enabled']},
+        )
+        return Response(
+            ActionCatalogItemSerializer(action_item, context={'request': request}).data
+        )
 
 
 class ChallengeListCreateView(generics.ListCreateAPIView):
