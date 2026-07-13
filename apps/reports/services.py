@@ -1,10 +1,10 @@
 from datetime import timedelta
 
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import ExtractMonth, TruncDate
 from django.utils import timezone
 
-from apps.challenges.models import ActionLog, ActionStatus, Challenge
+from apps.challenges.models import ActionLog, ActionStatus, Challenge, ChallengeParticipation
 
 PERIOD_CHOICES = ('this_week', 'this_month', 'this_year', 'all_time')
 
@@ -157,3 +157,75 @@ def actions_heatmap(logs_qs, start, end):
         for slot, _, _ in TIME_SLOTS
         for day in WEEKDAY_NAMES
     ]
+
+
+def distinct_user_count(logs_qs, start, end):
+    return _in_window(logs_qs, start, end).values('participation__user').distinct().count()
+
+
+def most_popular_action(logs_qs, start, end):
+    row = (
+        _in_window(logs_qs, start, end)
+        .values('action_catalog_item__name')
+        .annotate(c=Count('id'))
+        .order_by('-c')
+        .first()
+    )
+    return row['action_catalog_item__name'] if row else None
+
+
+def highest_single_day_co2(logs_qs, start, end):
+    row = (
+        _in_window(logs_qs, start, end)
+        .annotate(day=TruncDate('submitted_at'))
+        .values('day')
+        .annotate(total=Sum('co2_impact_kg'))
+        .order_by('-total')
+        .first()
+    )
+    if not row:
+        return None
+    return {'date': row['day'].isoformat(), 'carbon_saved_kg': float(row['total'] or 0)}
+
+
+def top_performing_challenge(challenges_qs, start, end):
+    """Ranks by approved action-log count. Re-queries by id to avoid a fan-out with any M2M community filter
+    already applied to challenges_qs, which would otherwise inflate the Count annotation."""
+    ids = list(challenges_qs.values_list('id', flat=True))
+    qs = Challenge.objects.filter(id__in=ids)
+    if start is not None:
+        qs = qs.filter(created_at__gte=start, created_at__lt=end)
+
+    best = (
+        qs.annotate(
+            completed_count=Count(
+                'participations__submissions',
+                filter=Q(participations__submissions__status=ActionStatus.APPROVED),
+            )
+        )
+        .order_by('-completed_count')
+        .first()
+    )
+    if not best:
+        return None
+    return {'title': best.title, 'completed_count': best.completed_count}
+
+
+def participation_rate_percent(company, community, start, end):
+    from apps.accounts.models import User
+
+    qs = ChallengeParticipation.objects.filter(challenge__company=company)
+    member_ids = None
+    if community:
+        member_ids = community.member_queryset().values_list('id', flat=True)
+        qs = qs.filter(user_id__in=member_ids)
+    if start is not None:
+        qs = qs.filter(joined_at__gte=start, joined_at__lt=end)
+    participant_count = qs.values('user').distinct().count()
+
+    total_qs = User.objects.filter(company=company, is_active=True)
+    if member_ids is not None:
+        total_qs = total_qs.filter(id__in=member_ids)
+    total = total_qs.count()
+
+    return round(participant_count / total * 100, 2) if total else 0.0

@@ -8,4 +8,8 @@ urlpatterns = [
     path('timeseries/co2-growth/', views.CO2GrowthTimeseriesView.as_view(), name='report-co2-growth'),
     path('timeseries/participation/', views.ParticipationTimeseriesView.as_view(), name='report-participation'),
     path('heatmap/actions/', views.ActionsHeatmapView.as_view(), name='report-actions-heatmap'),
+
+    path('actions-taken/summary/', views.ActionsTakenSummaryView.as_view(), name='report-actions-taken-summary'),
+    path('carbon/summary/', views.CarbonSummaryView.as_view(), name='report-carbon-summary'),
+    path('challenges/summary/', views.ChallengesSummaryView.as_view(), name='report-challenges-summary'),
 ]

@@ -131,3 +131,86 @@ class ActionsHeatmapView(BaseReportView):
         start, end = services.period_range(period)
         logs = services.scoped_action_logs(request.user.company, community)
         return Response({'period': period, 'results': services.actions_heatmap(logs, start, end)})
+
+
+class ActionsTakenSummaryView(BaseReportView):
+    """Tiles for the Reports -> Actions Taken drill-down."""
+
+    def get(self, request):
+        period, error = self._period(request)
+        if error:
+            return error
+        community, error = self._community(request)
+        if error:
+            return error
+
+        start, end = services.period_range(period)
+        prev_start, prev_end = services.previous_period_range(start, end)
+        logs = services.scoped_action_logs(request.user.company, community)
+
+        actions_taken = services.compute_tile(logs, start, end, prev_start, prev_end)
+        points_earned = services.compute_tile(logs, start, end, prev_start, prev_end, 'points_awarded')
+
+        user_count = services.distinct_user_count(logs, start, end)
+        actions_per_user = round(actions_taken['value'] / user_count, 2) if user_count else 0.0
+
+        return Response({
+            'period': period,
+            'actions_taken': actions_taken,
+            'actions_per_user': {'value': actions_per_user, 'change_percent': None},
+            'points_earned': points_earned,
+            'most_popular_action': services.most_popular_action(logs, start, end),
+        })
+
+
+class CarbonSummaryView(BaseReportView):
+    """Tiles for the Reports -> Carbon Footprint drill-down."""
+
+    def get(self, request):
+        period, error = self._period(request)
+        if error:
+            return error
+        community, error = self._community(request)
+        if error:
+            return error
+
+        start, end = services.period_range(period)
+        prev_start, prev_end = services.previous_period_range(start, end)
+        logs = services.scoped_action_logs(request.user.company, community)
+
+        carbon = services.compute_tile(logs, start, end, prev_start, prev_end, 'co2_impact_kg')
+        user_count = services.distinct_user_count(logs, start, end)
+        carbon_per_user = round(carbon['value'] / user_count, 2) if user_count else 0.0
+
+        return Response({
+            'period': period,
+            'carbon_emission_saved_kg': carbon,
+            'carbon_saved_per_user_kg': {'value': carbon_per_user, 'change_percent': None},
+            'highest_single_day': services.highest_single_day_co2(logs, start, end),
+        })
+
+
+class ChallengesSummaryView(BaseReportView):
+    """Tiles for the Reports -> Challenges drill-down."""
+
+    def get(self, request):
+        period, error = self._period(request)
+        if error:
+            return error
+        community, error = self._community(request)
+        if error:
+            return error
+
+        start, end = services.period_range(period)
+        prev_start, prev_end = services.previous_period_range(start, end)
+        challenges = services.challenges_queryset(request.user.company, community)
+
+        return Response({
+            'period': period,
+            'total_challenges_created': _challenges_tile(challenges, start, end, prev_start, prev_end),
+            'participation_rate_percent': {
+                'value': services.participation_rate_percent(request.user.company, community, start, end),
+                'change_percent': None,
+            },
+            'top_performing_challenge': services.top_performing_challenge(challenges, start, end),
+        })
