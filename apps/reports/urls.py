@@ -1,0 +1,11 @@
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path('overview/', views.OverviewReportView.as_view(), name='report-overview'),
+    path('timeseries/co2-and-users/', views.CO2AndUsersTimeseriesView.as_view(), name='report-co2-and-users'),
+    path('timeseries/co2-growth/', views.CO2GrowthTimeseriesView.as_view(), name='report-co2-growth'),
+    path('timeseries/participation/', views.ParticipationTimeseriesView.as_view(), name='report-participation'),
+    path('heatmap/actions/', views.ActionsHeatmapView.as_view(), name='report-actions-heatmap'),
+]

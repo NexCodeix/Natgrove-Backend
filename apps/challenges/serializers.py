@@ -24,7 +24,8 @@ class ActionCatalogItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActionCatalogItem
         fields = [
-            'id', 'name', 'description', 'icon', 'category', 'default_points', 'co2_impact_kg', 'is_active',
+            'id', 'name', 'description', 'icon', 'category', 'default_points', 'co2_impact_kg',
+            'water_saved_liters', 'waste_recycled_kg', 'is_active',
             'is_enabled', 'times_completed', 'avg_co2_saved_kg', 'challenges_count',
         ]
         read_only_fields = ['id']
@@ -173,11 +174,12 @@ class ActionLogSerializer(serializers.ModelSerializer):
         model = ActionLog
         fields = [
             'id', 'participation', 'action_catalog_item', 'action_name', 'points_awarded', 'co2_impact_kg',
-            'proof_image', 'caption', 'status', 'submitted_at', 'reviewed_by', 'reviewed_at', 'review_note',
+            'water_saved_liters', 'waste_recycled_kg', 'proof_image', 'caption', 'status', 'submitted_at',
+            'reviewed_by', 'reviewed_at', 'review_note',
         ]
         read_only_fields = [
-            'id', 'participation', 'points_awarded', 'co2_impact_kg', 'status', 'submitted_at',
-            'reviewed_by', 'reviewed_at',
+            'id', 'participation', 'points_awarded', 'co2_impact_kg', 'water_saved_liters', 'waste_recycled_kg',
+            'status', 'submitted_at', 'reviewed_by', 'reviewed_at',
         ]
 
 

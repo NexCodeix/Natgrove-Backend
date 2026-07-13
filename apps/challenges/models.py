@@ -66,6 +66,8 @@ class ActionCatalogItem(BaseModel):
     category = models.CharField(max_length=30, choices=ChallengeType.choices)
     default_points = models.PositiveIntegerField()
     co2_impact_kg = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    water_saved_liters = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    waste_recycled_kg = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -212,6 +214,14 @@ class ActionLog(BaseModel):
     co2_impact_kg = models.DecimalField(
         max_digits=8, decimal_places=2, default=0,
         help_text='Snapshot of the catalog item CO2 impact at submission time.',
+    )
+    water_saved_liters = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0,
+        help_text='Snapshot of the catalog item water-saved impact at submission time.',
+    )
+    waste_recycled_kg = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0,
+        help_text='Snapshot of the catalog item waste-recycled impact at submission time.',
     )
     proof_image = models.ImageField(upload_to='action_proofs/')
     caption = models.TextField(blank=True)

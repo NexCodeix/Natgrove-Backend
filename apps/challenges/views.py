@@ -162,7 +162,8 @@ class LogActionView(APIView):
 
         action_log = serializer.save(
             participation=participation, points_awarded=action_item.default_points,
-            co2_impact_kg=action_item.co2_impact_kg,
+            co2_impact_kg=action_item.co2_impact_kg, water_saved_liters=action_item.water_saved_liters,
+            waste_recycled_kg=action_item.waste_recycled_kg,
         )
         return Response(ActionLogSerializer(action_log).data, status=status.HTTP_201_CREATED)
 
