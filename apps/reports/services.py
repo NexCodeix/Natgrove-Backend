@@ -4,9 +4,10 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import ExtractMonth, TruncDate
 from django.utils import timezone
 
-from apps.challenges.models import ActionLog, ActionStatus, Challenge, ChallengeParticipation
+from apps.challenges.models import ActionLog, ActionStatus, Challenge, ChallengeParticipation, ChallengeType
 
 PERIOD_CHOICES = ('this_week', 'this_month', 'this_year', 'all_time')
+BREAKDOWN_METRICS = ('count', 'co2')
 
 MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -229,3 +230,22 @@ def participation_rate_percent(company, community, start, end):
     total = total_qs.count()
 
     return round(participant_count / total * 100, 2) if total else 0.0
+
+
+def category_breakdown(logs_qs, start, end, metric='count'):
+    """Per-category donut data. Includes all 9 categories (0 for ones with no activity in the window)."""
+    qs = _in_window(logs_qs, start, end).values('action_catalog_item__category')
+    if metric == 'co2':
+        qs = qs.annotate(value=Sum('co2_impact_kg'))
+    else:
+        qs = qs.annotate(value=Count('id'))
+
+    values_by_category = {row['action_catalog_item__category']: float(row['value'] or 0) for row in qs}
+    total = sum(values_by_category.values())
+
+    results = []
+    for key, label in ChallengeType.choices:
+        value = values_by_category.get(key, 0)
+        percent = round(value / total * 100, 2) if total else 0.0
+        results.append({'category': key, 'label': label, 'value': value, 'percent': percent})
+    return results

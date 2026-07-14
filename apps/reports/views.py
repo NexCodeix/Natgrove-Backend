@@ -1,6 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import permissions, status
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,10 +8,11 @@ from apps.accounts.models import Community
 from apps.accounts.permissions import IsManagerOrAdmin
 
 from . import services
+from .serializers import ActionsLogEntrySerializer
 
 
-class BaseReportView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsManagerOrAdmin]
+class ReportFilterMixin:
+    """Shared period/community query-param handling for both plain APIViews and ListAPIViews."""
 
     def _period(self, request, default='this_month'):
         period = request.query_params.get('period', default)
@@ -28,6 +29,10 @@ class BaseReportView(APIView):
             return None, None
         community = get_object_or_404(Community, pk=community_id, company_id=request.user.company_id)
         return community, None
+
+
+class BaseReportView(ReportFilterMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated, IsManagerOrAdmin]
 
 
 def _challenges_tile(challenges_qs, start, end, prev_start, prev_end):
@@ -214,3 +219,54 @@ class ChallengesSummaryView(BaseReportView):
             },
             'top_performing_challenge': services.top_performing_challenge(challenges, start, end),
         })
+
+
+class CategoryBreakdownView(BaseReportView):
+    """Donut carousel data, shared across the Actions Taken, Carbon Footprint, and Challenges drill-downs."""
+
+    def get(self, request):
+        period, error = self._period(request)
+        if error:
+            return error
+        community, error = self._community(request)
+        if error:
+            return error
+
+        metric = request.query_params.get('metric', 'count')
+        if metric not in services.BREAKDOWN_METRICS:
+            return Response(
+                {'metric': f'Must be one of {", ".join(services.BREAKDOWN_METRICS)}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        start, end = services.period_range(period)
+        logs = services.scoped_action_logs(request.user.company, community)
+        return Response({
+            'period': period,
+            'metric': metric,
+            'results': services.category_breakdown(logs, start, end, metric),
+        })
+
+
+class ActionsLogView(ReportFilterMixin, generics.ListAPIView):
+    """Paginated 'Actions Completed By Users' table."""
+
+    serializer_class = ActionsLogEntrySerializer
+    permission_classes = [permissions.IsAuthenticated, IsManagerOrAdmin]
+
+    def list(self, request, *args, **kwargs):
+        period, error = self._period(request)
+        if error:
+            return error
+        community, error = self._community(request)
+        if error:
+            return error
+        self._resolved_period = period
+        self._resolved_community = community
+        return super().list(request, *args, **kwargs)
+
+    def get_queryset(self):
+        start, end = services.period_range(self._resolved_period)
+        logs = services.scoped_action_logs(self.request.user.company, self._resolved_community)
+        qs = logs if start is None else logs.filter(submitted_at__gte=start, submitted_at__lt=end)
+        return qs.order_by('-submitted_at')
