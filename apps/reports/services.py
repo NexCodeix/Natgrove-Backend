@@ -249,3 +249,44 @@ def category_breakdown(logs_qs, start, end, metric='count'):
         percent = round(value / total * 100, 2) if total else 0.0
         results.append({'category': key, 'label': label, 'value': value, 'percent': percent})
     return results
+
+
+def company_members_qs(company, community):
+    from apps.accounts.models import User
+
+    qs = User.objects.filter(company=company, is_active=True)
+    if community:
+        member_ids = community.member_queryset().values_list('id', flat=True)
+        qs = qs.filter(id__in=member_ids)
+    return qs
+
+
+def total_members_tile(company, community, prev_end):
+    """Current headcount vs headcount as of the end of the prior period (membership growth)."""
+    qs = company_members_qs(company, community)
+    current = qs.count()
+    if prev_end is None:
+        return {'value': current, 'change_percent': None}
+    previous = qs.filter(created_at__lt=prev_end).count()
+    return {'value': current, 'change_percent': percent_change(current, previous)}
+
+
+def active_members_tile(logs_qs, start, end, prev_start, prev_end):
+    current = distinct_user_count(logs_qs, start, end)
+    if prev_start is None:
+        return {'value': current, 'change_percent': None}
+    previous = distinct_user_count(logs_qs, prev_start, prev_end)
+    return {'value': current, 'change_percent': percent_change(current, previous)}
+
+
+def new_members_tile(company, community, start, end, prev_start, prev_end):
+    qs = company_members_qs(company, community)
+
+    def _count(s, e):
+        return qs.count() if s is None else qs.filter(created_at__gte=s, created_at__lt=e).count()
+
+    current = _count(start, end)
+    if prev_start is None:
+        return {'value': current, 'change_percent': None}
+    previous = _count(prev_start, prev_end)
+    return {'value': current, 'change_percent': percent_change(current, previous)}

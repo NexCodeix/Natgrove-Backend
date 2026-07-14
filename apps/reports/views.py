@@ -8,7 +8,7 @@ from apps.accounts.models import Community
 from apps.accounts.permissions import IsManagerOrAdmin
 
 from . import services
-from .serializers import ActionsLogEntrySerializer
+from .serializers import ActionsLogEntrySerializer, MemberSerializer
 
 
 class ReportFilterMixin:
@@ -270,3 +270,47 @@ class ActionsLogView(ReportFilterMixin, generics.ListAPIView):
         logs = services.scoped_action_logs(self.request.user.company, self._resolved_community)
         qs = logs if start is None else logs.filter(submitted_at__gte=start, submitted_at__lt=end)
         return qs.order_by('-submitted_at')
+
+
+class MembersSummaryView(BaseReportView):
+    """The 4 tiles on the Members page."""
+
+    def get(self, request):
+        period, error = self._period(request)
+        if error:
+            return error
+        community, error = self._community(request)
+        if error:
+            return error
+
+        start, end = services.period_range(period)
+        prev_start, prev_end = services.previous_period_range(start, end)
+        logs = services.scoped_action_logs(request.user.company, community)
+
+        return Response({
+            'period': period,
+            'total_members': services.total_members_tile(request.user.company, community, prev_end),
+            'active_members': services.active_members_tile(logs, start, end, prev_start, prev_end),
+            'participation_rate_percent': {
+                'value': services.participation_rate_percent(request.user.company, community, start, end),
+                'change_percent': None,
+            },
+            'new_members': services.new_members_tile(request.user.company, community, start, end, prev_start, prev_end),
+        })
+
+
+class MembersListView(ReportFilterMixin, generics.ListAPIView):
+    """The member roster table beneath the Members page tiles. All-time totals, not period-filtered."""
+
+    serializer_class = MemberSerializer
+    permission_classes = [permissions.IsAuthenticated, IsManagerOrAdmin]
+
+    def list(self, request, *args, **kwargs):
+        community, error = self._community(request)
+        if error:
+            return error
+        self._resolved_community = community
+        return super().list(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return services.company_members_qs(self.request.user.company, self._resolved_community).order_by('-created_at')

@@ -1,0 +1,728 @@
+{
+  "info": {
+    "name": "NetGrove - Reports & Analytics",
+    "description": "Self-contained: registers its own company admin + employee (reuses the 'NetGrove Local' environment). Registration needs a real email OTP - check the inbox and paste the 4-digit code into the 'Verify Email' request bodies before sending them. Run top-to-bottom: Setup creates a company/employee, Actions Management exercises the per-company enable/disable toggle, Generate Sample Data creates a challenge and logs+approves a few actions so the reports below have real numbers to show, then the Reports folders read them back.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "1. Register Company + Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"Acme Corp\",\n  \"email_domain\": \"acme.com\",\n  \"admin_full_name\": \"Alice Smith\",\n  \"admin_email\": \"admin@acme.com\",\n  \"admin_password\": \"SuperSecret123\",\n  \"admin_confirm_password\": \"SuperSecret123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/register/company/", "host": ["{{base_url}}"], "path": ["register", "company", ""] }
+          }
+        },
+        {
+          "name": "2. Verify Email (Admin) - paste code from inbox",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('access_token', data.tokens.access);",
+                  "pm.environment.set('company_id', data.user.company);",
+                  "pm.environment.set('admin_user_id', data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@acme.com\",\n  \"code\": \"PASTE_CODE_FROM_EMAIL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] }
+          }
+        },
+        {
+          "name": "3. Create Department",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('department_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sustainability\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/departments/", "host": ["{{base_url}}"], "path": ["departments", ""] }
+          }
+        },
+        {
+          "name": "4. Register Employee",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Bob Employee\",\n  \"email\": \"bob@acme.com\",\n  \"password\": \"SuperSecret123\",\n  \"confirm_password\": \"SuperSecret123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/register/employee/", "host": ["{{base_url}}"], "path": ["register", "employee", ""] }
+          }
+        },
+        {
+          "name": "5. Verify Email (Employee) - paste code from inbox",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('employee_access_token', data.tokens.access);",
+                  "pm.environment.set('employee_id', data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bob@acme.com\",\n  \"code\": \"PASTE_CODE_FROM_EMAIL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/verify-email/", "host": ["{{base_url}}"], "path": ["verify-email", ""] }
+          }
+        },
+        {
+          "name": "6. Assign Employee to Department",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"department\": \"{{department_id}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/employees/{{employee_id}}/role/",
+              "host": ["{{base_url}}"],
+              "path": ["employees", "{{employee_id}}", "role", ""]
+            }
+          }
+        },
+        {
+          "name": "7. List Communities (capture company + department community ids)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "var results = data.results || data;",
+                  "var companyCommunity = results.find(c => c.scope === 'COMPANY');",
+                  "var deptCommunity = results.find(c => c.scope === 'DEPARTMENT');",
+                  "if (companyCommunity) pm.environment.set('company_community_id', companyCommunity.id);",
+                  "if (deptCommunity) pm.environment.set('department_community_id', deptCommunity.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{base_url}}/communities/", "host": ["{{base_url}}"], "path": ["communities", ""] }
+          }
+        },
+        {
+          "name": "8. List Action Catalog - Water Saving (capture an action id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "var results = data.results || data;",
+                  "var reuseCup = results.find(a => a.name === 'Reuse a cup');",
+                  "if (reuseCup) pm.environment.set('action_id_water', reuseCup.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/action-catalog/?category=WATER_SAVING",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-catalog", ""],
+              "query": [{ "key": "category", "value": "WATER_SAVING" }]
+            }
+          }
+        },
+        {
+          "name": "9. List Action Catalog - Recycling (capture a second action id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "var results = data.results || data;",
+                  "var bottle = results.find(a => a.name === 'Recycle a plastic bottle');",
+                  "if (bottle) pm.environment.set('action_id_recycling', bottle.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/action-catalog/?category=RECYCLING",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-catalog", ""],
+              "query": [{ "key": "category", "value": "RECYCLING" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Actions Management (Part A)",
+      "item": [
+        {
+          "name": "10. List Actions - default (this company, all enabled by default)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/action-catalog/?category=WATER_SAVING",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-catalog", ""],
+              "query": [{ "key": "category", "value": "WATER_SAVING" }]
+            }
+          }
+        },
+        {
+          "name": "11. Disable 'Reuse a cup' for This Company",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_enabled\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/company-actions/{{action_id_water}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["company-actions", "{{action_id_water}}", ""]
+            }
+          }
+        },
+        {
+          "name": "12. List Actions Filtered ?status=disabled (should include it)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/action-catalog/?status=disabled",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-catalog", ""],
+              "query": [{ "key": "status", "value": "disabled" }]
+            }
+          }
+        },
+        {
+          "name": "13. Re-enable 'Reuse a cup' (needed for the sample data below)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_enabled\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/company-actions/{{action_id_water}}/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["company-actions", "{{action_id_water}}", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Generate Sample Data",
+      "item": [
+        {
+          "name": "14. Create Challenge (both actions, department community)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('challenge_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sustainability Sprint\",\n  \"challenge_type\": \"WATER_SAVING\",\n  \"actions\": [\"{{action_id_water}}\", \"{{action_id_recycling}}\"],\n  \"communities\": [\"{{department_community_id}}\"],\n  \"challenge_format\": \"TIMELINE\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T00:00:00Z\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{challenges_base_url}}/", "host": ["{{challenges_base_url}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "15. Employee - Join Challenge",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "url": {
+              "raw": "{{challenges_base_url}}/{{challenge_id}}/join/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{challenge_id}}", "join", ""]
+            }
+          }
+        },
+        {
+          "name": "16. Employee - Log Water Action (upload proof photo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('action_log_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "action_catalog_item", "value": "{{action_id_water}}", "type": "text" },
+                { "key": "caption", "value": "Reused my cup today.", "type": "text" },
+                { "key": "proof_image", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/{{challenge_id}}/log-action/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{challenge_id}}", "log-action", ""]
+            }
+          }
+        },
+        {
+          "name": "17. Admin - Approve Water Action Log",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\",\n  \"review_note\": \"Nice work!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/action-logs/{{action_log_id}}/review/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-logs", "{{action_log_id}}", "review", ""]
+            }
+          }
+        },
+        {
+          "name": "18. Employee - Log Recycling Action (upload proof photo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.environment.set('action_log_id', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "action_catalog_item", "value": "{{action_id_recycling}}", "type": "text" },
+                { "key": "caption", "value": "Recycled a bottle.", "type": "text" },
+                { "key": "proof_image", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/{{challenge_id}}/log-action/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["{{challenge_id}}", "log-action", ""]
+            }
+          }
+        },
+        {
+          "name": "19. Admin - Approve Recycling Action Log",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{challenges_base_url}}/action-logs/{{action_log_id}}/review/",
+              "host": ["{{challenges_base_url}}"],
+              "path": ["action-logs", "{{action_log_id}}", "review", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports - Overview",
+      "item": [
+        {
+          "name": "20. Overview (this_month)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/overview/?period=this_month",
+              "host": ["{{reports_base_url}}"],
+              "path": ["overview", ""],
+              "query": [{ "key": "period", "value": "this_month" }]
+            }
+          }
+        },
+        {
+          "name": "21. Overview (all_time)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/overview/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["overview", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        },
+        {
+          "name": "22. CO2 + Users Timeseries (bar chart)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/timeseries/co2-and-users/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["timeseries", "co2-and-users", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        },
+        {
+          "name": "23. CO2 Growth Timeseries (area chart)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/timeseries/co2-growth/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["timeseries", "co2-growth", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        },
+        {
+          "name": "24. Participation Timeseries (monthly, this year)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/timeseries/participation/?year=2026",
+              "host": ["{{reports_base_url}}"],
+              "path": ["timeseries", "participation", ""],
+              "query": [{ "key": "year", "value": "2026" }]
+            }
+          }
+        },
+        {
+          "name": "25. Actions Heatmap (day x time-of-day)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/heatmap/actions/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["heatmap", "actions", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports - Drill-downs",
+      "item": [
+        {
+          "name": "26. Actions Taken - Summary Tiles",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/actions-taken/summary/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["actions-taken", "summary", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        },
+        {
+          "name": "27. Carbon Footprint - Summary Tiles",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/carbon/summary/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["carbon", "summary", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        },
+        {
+          "name": "28. Challenges - Summary Tiles",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/challenges/summary/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["challenges", "summary", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        },
+        {
+          "name": "29. Category Breakdown - by count (donut carousel)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/category-breakdown/?period=all_time&metric=count",
+              "host": ["{{reports_base_url}}"],
+              "path": ["category-breakdown", ""],
+              "query": [{ "key": "period", "value": "all_time" }, { "key": "metric", "value": "count" }]
+            }
+          }
+        },
+        {
+          "name": "30. Category Breakdown - by CO2 (donut carousel)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/category-breakdown/?period=all_time&metric=co2",
+              "host": ["{{reports_base_url}}"],
+              "path": ["category-breakdown", ""],
+              "query": [{ "key": "period", "value": "all_time" }, { "key": "metric", "value": "co2" }]
+            }
+          }
+        },
+        {
+          "name": "31. Actions Completed By Users (paginated table)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/actions-log/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["actions-log", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports - Members",
+      "item": [
+        {
+          "name": "32. Members - Summary Tiles",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/members/summary/?period=all_time",
+              "host": ["{{reports_base_url}}"],
+              "path": ["members", "summary", ""],
+              "query": [{ "key": "period", "value": "all_time" }]
+            }
+          }
+        },
+        {
+          "name": "33. Members - Roster Table",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{reports_base_url}}/members/", "host": ["{{reports_base_url}}"], "path": ["members", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negative Tests",
+      "item": [
+        {
+          "name": "34. Employee Tries Reports Overview (should be 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{employee_access_token}}" }],
+            "url": { "raw": "{{reports_base_url}}/overview/", "host": ["{{reports_base_url}}"], "path": ["overview", ""] }
+          }
+        },
+        {
+          "name": "35. Invalid Period Rejected (should be 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/overview/?period=bogus",
+              "host": ["{{reports_base_url}}"],
+              "path": ["overview", ""],
+              "query": [{ "key": "period", "value": "bogus" }]
+            }
+          }
+        },
+        {
+          "name": "36. Invalid Metric Rejected on Category Breakdown (should be 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/category-breakdown/?metric=bogus",
+              "host": ["{{reports_base_url}}"],
+              "path": ["category-breakdown", ""],
+              "query": [{ "key": "metric", "value": "bogus" }]
+            }
+          }
+        },
+        {
+          "name": "37. Community From Another Company Rejected (should be 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 404', () => pm.response.to.have.status(404));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{reports_base_url}}/overview/?community=00000000-0000-0000-0000-000000000000",
+              "host": ["{{reports_base_url}}"],
+              "path": ["overview", ""],
+              "query": [{ "key": "community", "value": "00000000-0000-0000-0000-000000000000" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

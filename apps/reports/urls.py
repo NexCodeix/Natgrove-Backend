@@ -15,4 +15,7 @@ urlpatterns = [
 
     path('category-breakdown/', views.CategoryBreakdownView.as_view(), name='report-category-breakdown'),
     path('actions-log/', views.ActionsLogView.as_view(), name='report-actions-log'),
+
+    path('members/summary/', views.MembersSummaryView.as_view(), name='report-members-summary'),
+    path('members/', views.MembersListView.as_view(), name='report-members-list'),
 ]
